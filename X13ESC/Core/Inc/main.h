@@ -38,26 +38,6 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
-typedef enum
-{
-	IDE_CLEAR = 0,
-	IDE_SET = 1
-} CAN_IDEStatus;
-
-typedef enum
-{
-	RTR_CLEAR = 0,
-	RTR_SET = 1
-} CAN_RTRStatus;
-
-typedef struct CAN_IDTypeDef
-{
-	uint32_t stdId;
-	uint32_t extId;
-	CAN_IDEStatus ide;
-	CAN_RTRStatus rtr;
-} CAN_IDTypeDef;
-
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
