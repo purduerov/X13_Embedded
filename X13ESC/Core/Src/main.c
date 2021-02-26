@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "canFilterBankConfig.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -41,6 +43,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan;
+
+uint32_t canId = 0x201;
 
 /* USER CODE BEGIN PV */
 
@@ -171,17 +175,41 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
+
+  //  Configure CAN Filter
   CAN_FilterTypeDef thrusterOperationFilter;
+  CAN_FilterBank canFilterBank;
+  CAN_FilterIDMaskConfig canFilterId;
+  CAN_FilterIDMaskConfig canFilterMask;
+
+  //  Configure Filter Bank Parameters except ID and Mask
   thrusterOperationFilter.FilterFIFOAssignment = CAN_FILTER_FIFO0;
   thrusterOperationFilter.FilterBank = 0;
   thrusterOperationFilter.FilterMode = CAN_FILTERMODE_IDMASK;
   thrusterOperationFilter.FilterScale = CAN_FILTERSCALE_32BIT;
   thrusterOperationFilter.FilterActivation = CAN_FILTER_ENABLE;
 
+  //  Configure only ID and Mask Filter Bank Parameters
+  canFilterBank.filterMode = CANIDFilterMode_32BitMask;
 
-  HAL_CAN_ConfigFilter(hcan, TODO);
+  canFilterId.stdId = canId;
+  canFilterId.extId = 0;
+  canFilterId.ide = CAN_IDE_CLEAR;
+  canFilterId.rtr = CAN_RTR_CLEAR;
 
-  HAL_CAN_Start(hcan);  //  Enters Normal Operating Mode
+  canFilterMask.stdId = 0x7FF;
+  canFilterMask.extId = 0;
+  canFilterMask.ide = CAN_IDE_SET;
+  canFilterMask.rtr = CAN_RTR_SET;
+
+  canFilterBank.id1 = &canFilterId;
+  canFilterBank.mask1 = &canFilterMask;
+
+  CAN_ConfigureFilterBank(&thrusterOperationFilter, &canFilterBank);
+  HAL_CAN_ConfigFilter(&hcan, &thrusterOperationFilter);
+
+  // HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
+
   /* USER CODE END CAN_Init 2 */
 
 }
@@ -211,96 +239,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
-#define CAN_STD_ID_MASK 0x7FF
-
-#define CAN_STD_ID_16BIT_SCALE_SHIFT 5
-#define CAN_RTR_16BIT_SCALE_SHIFT 4
-#define CAN_IDE_16BIT_SCALE_SHIFT 3
-#define CAN_EXT_ID_16BIT_SCALE_MASK 0x38000
-
-uint32_t CAN_ConfigFilterIdSection16Bit(CAN_IDTypeDef* id)
-{
-	uint32_t stdid = (id->stdId & CAN_STD_ID_MASK) << CAN_STD_ID_16BIT_SCALE_SHIFT;
-	uint32_t rtr = ((id->rtr == RTR_SET) ? 1 : 0) << CAN_RTR_16BIT_SCALE_SHIFT;
-	uint32_t ide = ((id->ide == IDE_SET) ? 1 : 0) << CAN_IDE_16BIT_SCALE_SHIFT;
-	uint32_t extid = id->extId & CAN_EXT_ID_16BIT_SCALE_MASK;
-	return stdid | rtr | ide | extid;
-}
-
-uint32_t* CAN_ConfigFilterIdSection32Bit(CAN_IDTypeDef* id)
-{
-	uint32_t returnBytes[2];
-	uint32_t stdid = (id->stdId & CAN_STD_ID_MASK) << 5;
-	uint32_t extidHigh = (id->extId & 0x3E000) >> 13;
-	returnBytes[1] = stdid | extid;
-
-	uitn32_t extidLow = (id->extId & 0x1FFF) << 3;
-	uint32_t ide = ((id->ide == IDE_SET) ? 1 : 0) << 2;
-	uint32_t rtr = ((id->rtr == RTR_SET) ? 1 : 0) << 1;
-	returnBytes[0] = extid | ide | rtr;
-
-	return returnBytes;
-}
-
-void CAN_ConfigFilterId(CAN_FilterTypeDef* halFilterConfig, CAN_IDTypeDef* id, CAN_IDTypeDef* mask)
-{
-	uint32_t* filterId;
-	uint32_t* maskId;
-
-	if (halFilterConfig->FilterMode == CAN_FILTERMODE_IDMASK)
-	{
-		if (halFilterConfig->FilterScale == CAN_FILTERSCALE_16BIT)
-		{
-			halFilterConfig->FilterIdLow = CAN_ConfigFilterIdSection16Bit(id[0]);
-			halFilterConfig->FilterIdHigh = CAN_ConfigFilterIdSection16Bit(mask[0]);
-			halFilterConfig->FilterMaskIdLow = CAN_ConfigFilterIdSection16Bit(id[1]);
-			halFilterConfig->FilterMaskIdHigh = CAN_ConfigFilterIdSection16Bit(mask[1]);
-		}
-		else if (halFilterConfig->FilterScale == CAN_FILTERSCALE_32BIT)
-		{
-			filterId = CAN_ConfigFilterIdSection32Bit(id);
-			halFilterConfig->FilterIdHigh = filterId[1];
-			halFilterConfig->FilterIdLow = filterId[0];
-
-			maskId = CAN_ConfigFilterIdSection32Bit(mask);
-			halFilterConfig->FilterMaskIdHigh = maskId[1];
-			halFilterConfig->FilterMaskIdLow = maskId[0];
-		}
-		else
-		{
-			//  Error
-		}
-	}
-	else if (halFilterConfig->FilterMode == CAN_FILTERMODE_IDLIST)
-	{
-		if (halFilterConfig->FilterScale == CAN_FILTERSCALE_16BIT)
-		{
-			halFilterConfig->FilterIdLow = CAN_ConfigFilterIdSection16Bit(id[0]);
-			halFilterConfig->FilterIdHigh = CAN_ConfigFilterIdSection16Bit(id[1]);
-			halFilterConfig->FilterMaskIdLow = CAN_ConfigFilterIdSection16Bit(id[2]);
-			halFilterConfig->FilterMaskIdHigh = CAN_ConfigFilterIdSection16Bit(id[3]);
-		}
-		else if (halFilterConfig->FilterScale == CAN_FILTERSCALE_32BIT)
-		{
-			filterId = CAN_ConfigFilterIdSection32Bit(id[0]);
-			halFilterConfig->FilterIdHigh = filterId[1];
-			halFilterConfig->FilterIdLow = filterId[0];
-
-			filterId = CAN_ConfigFilterIdSection32Bit(id[1]);
-			halFilterConfig->FilterMaskIdHigh = filterId[1];
-			halFilterConfig->FilterMaskIdLow = filterId[0];
-		}
-		else
-		{
-			//  Error
-		}
-	}
-	else
-	{
-		//  Error
-	}
-}
 
 /* USER CODE END 4 */
 
