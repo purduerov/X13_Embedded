@@ -7,4 +7,5 @@ RemoteSystemsTempFiles
 *.hex
 *.list
 *.map
+*.launch
 **/Debug/*
