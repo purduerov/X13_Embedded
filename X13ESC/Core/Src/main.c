@@ -44,9 +44,9 @@
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan;
 
-uint32_t canId = 0x201;
-
 /* USER CODE BEGIN PV */
+
+uint32_t canId;
 
 /* USER CODE END PV */
 
@@ -55,6 +55,8 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN_Init(void);
 /* USER CODE BEGIN PFP */
+
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 
 /* USER CODE END PFP */
 
@@ -208,7 +210,13 @@ static void MX_CAN_Init(void)
   CAN_ConfigureFilterBank(&thrusterOperationFilter, &canFilterBank);
   HAL_CAN_ConfigFilter(&hcan, &thrusterOperationFilter);
 
-  // HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
+  //  Enable FIFO0 Message Pending Interrupt
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+
+  //  Configure CAN Interrupt Callbacks
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+
+  HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
 
   /* USER CODE END CAN_Init 2 */
 
@@ -239,6 +247,20 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+//  Handles ONLY the Reception of Thruster Operation CAN Packets
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint8_t data[4];
+
+	data[0] = (uint8_t)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
+	data[1] = (uint8_t)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
+	data[2] = (uint8_t)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
+	data[3] = (uint8_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
+
+	//  Release Output Mailbox
+	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+}
 
 /* USER CODE END 4 */
 
