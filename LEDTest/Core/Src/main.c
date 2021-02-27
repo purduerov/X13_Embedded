@@ -33,9 +33,10 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 
-#define LED_FLASH_TOGGLE_PERIOD_MS 500
 #define LED_PIN_PORT 'A'
 #define LED_PIN_NUMBER 15
+#define LED_FLASH_ENABLED 1
+#define LED_FLASH_TOGGLE_PERIOD_MS 500
 
 /* USER CODE END PD */
 
@@ -111,7 +112,10 @@ int main(void)
 
   HAL_GPIO_WritePin(ledPinPort,  ledPinNumber, GPIO_PIN_RESET);
 
+#if (LED_FLASH_ENABLED != 0)
   HAL_TIM_Base_Start_IT(&htim14);
+#endif
+
 
   /* USER CODE END 2 */
 
@@ -186,6 +190,8 @@ static void MX_TIM14_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM14_Init 2 */
+  //  Clear Status Register from any pending Update Events due to initialization
+  htim14.Instance->SR = 0;
 
   //  Configure LED Flash Frequency
   htim14.Init.Period = LED_FLASH_TOGGLE_PERIOD_MS - 1;
@@ -208,7 +214,7 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-#if (LED_PIN_POR == 'B' || LED_PIN_PORT == 'b')
+#if (LED_PIN_PORT == 'B' || LED_PIN_PORT == 'b')
   __HAL_RCC_GPIOB_CLK_ENABLE();
   ledPinPort = GPIOB;
 #elif (LED_PIN_PORT == 'C' || LED_PIN_PORT == 'c')
@@ -219,7 +225,7 @@ static void MX_GPIO_Init(void)
   ledPinPort = GPIOA;
 #endif
 
-  ledPinNumber = (uint16_t)(1 << (LED_PIN_NUMBER + 1));
+  ledPinNumber = (uint16_t)(1 << LED_PIN_NUMBER);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ledPinPort, ledPinNumber, GPIO_PIN_RESET);
