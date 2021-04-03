@@ -1,4 +1,6 @@
 from spidev import SpiDev
+from enum import IntEnum
+import time
 
 class MCP2515():
 
@@ -10,6 +12,11 @@ class MCP2515():
 	RESET_INSTRUCTION_BYTE = 0xC0
 	WRITE_INSTRUCTION_BYTE = 0x02
 	READ_INSTRUCTION_BYTE = 0x03
+	LOAD_TX_BUFFER_INSTRUCTION_BASE_BYTE = 0x40
+	REQUEST_TO_SEND_INSTRUCTION_BYTE = 0xC0
+	READ_STATUS_INSTRUCTION_BYTE = 0xA0
+
+	BYTE_MASK = 0xFF
 
 	def __init__(self, bus_num, device_num, 
 			max_speed_hz=DEFAULT_SPI_CLOCK_FREQUENCY,
@@ -24,7 +31,7 @@ class MCP2515():
 		self.set_spi_max_speed_hz(max_speed_hz)
 		self.set_spi_mode(clock_polarity, clock_phase)
 
-	def set_spi_max_speed_hz(self, max_speed_hz):
+	def set_spi_max_speed_hz(self, max_speed_hz=DEFAULT_SPI_CLOCK_FREQUENCY):
 		self.spi_instance.max_speed_hz = max_speed_hz
 
 	def set_spi_mode(self, clock_polarity=DEFAULT_CLOCK_POLARITY, clock_phase=DEFAULT_CLOCK_PHASE):
@@ -55,22 +62,28 @@ class MCP2515():
 	def load_tx_buffer(self, can_message_buffer, can_message_buffer_number):
 		data_bytes_to_send = []
 
-		load_tx_buffer_command = 0x40 | (can_message_buffer_number << 1)
+		load_tx_buffer_command = LOAD_TX_BUFFER_INSTRUCTION_BASE_BYTE | (can_message_buffer_number << 1)
 		data_bytes_to_send.append(load_tx_buffer_command)
 
-		data_byte = (can_message_buffer.get_standard_id() & (0xFF << 3)) >> 3
+		data_byte = (can_message_buffer.get_standard_id() & (BYTE_MASK << 3)) >> 3
 		data_bytes_to_send.append(data_byte)
 
 		data_byte = (can_message_buffer.get_standard_id() & 0x7) << 5
 		data_byte |= (can_message_buffer.get_id_extension() << 3)
-		data_byte |= ((can_message_buffer.get_extended_id() & (0x3 << 16)) >> 16)
-		data_bytes_to_send.append(data_byte)
 
-		data_byte = (can_message_buffer.get_extended_id() & (0xFF << 8)) >> 8
-		data_bytes_to_send.append(data_byte)
+		if (can_message_buffer.get_id_extension()):
+			data_byte |= ((can_message_buffer.get_extended_id() & (0x3 << 16)) >> 16)
+			data_bytes_to_send.append(data_byte)
 
-		data_byte = (can_message_buffer.get_extended_id() & 0xFF)
-		data_bytes_to_send.append(data_byte)
+			data_byte = (can_message_buffer.get_extended_id() & (0xFF << 8)) >> 8
+			data_bytes_to_send.append(data_byte)
+
+			data_byte = (can_message_buffer.get_extended_id() & 0xFF)
+			data_bytes_to_send.append(data_byte)
+		else:
+			data_bytes_to_send.append(data_byte)
+			data_bytes_to_send.append(0x00)
+			data_bytes_to_send.append(0x00)
 
 		data_byte = can_message_buffer.get_remote_transmission() << 6
 		data_byte |= can_message_buffer.get_num_data_bytes_to_send()
@@ -81,16 +94,75 @@ class MCP2515():
 
 		self.spi_instance.xfer2(data_bytes_to_send)
 
-	def send_tx_buffer(self, buffer0=False, buffer1=False, buffer2=False):
+	def send_tx_buffers(self, buffer0=False, buffer1=False, buffer2=False):
 		buffer_bits = 0
 		if buffer0: buffer_bits += 1
 		if buffer1: buffer_bits += 2
 		if buffer2: buffer_bits += 4
-		byte_to_send = 0xC0 | buffer_bits
+		byte_to_send = REQUEST_TO_SEND_INSTRUCTION_BYTE | buffer_bits
 		self.spi_instance.xfer2([byte_to_send])
 
-	def initialize(self):
-		self.reset()
+	def send_tx_buffer_with_priority(self, buffer_number, priority):
+		# Priority [0, 3] with 0 the lowest and 3 the highest
+		write_address = self.get_tx_buffer_control_register_address()
+		data_byte_to_send = (1 << 3) | priority
+		self.write_bytes(write_address, data_byte_to_send)
+
+	def get_tx_buffer_control_register_address(self, buffer_number):
+		BASE_TX_BUFFER_ADDRESS = 0x30
+		NUM_BYTES_BETWEEN_TX_BUFFERS = 16
+		return (BASE_TX_BUFFER_ADDRESS + (buffer_number * NUM_BYTES_BETWEEN_TX_BUFFERS))
+
+	def get_status(self, num_consecutive_times=1):
+		bytes_to_write = [READ_STATUS_INSTRUCTION_BYTE]
+		bytes_to_write.extend([0] * num_consecutive_times)
+		bytes_read = self.spi_instance.xfer2(bytes_to_write)
+		return bytes_read[1:]
+
+	def wait_until_tx_message_success(self, buffer_number):
+		tx_message_success = False
+		while (not tx_message_success):
+			byte_read = self.get_status()[0]
+			bit_mask = 1 << ((2 * buffer_number) + 2)
+			tx_message_success = not (byte_read & bit_mask)
+		return tx_message_success
+
+	def configure_bit_timing(self, bit_timing_configuration):
+		CONFIGURATION_REGISTER1_ADDRESS = 0x2A
+		CONFIGURATION_REGISTER2_ADDRESS = 0x29
+		CONFIGURATION_REGISTER3_ADDRESS = 0x28
+
+		byte_to_write = bit_timing_configuration.get_phase_segment2_length() & 0x07
+		bytes_to_write.append(byte_to_write)
+
+		byte_to_write = bit_timing_configuration.get_propagation_segment_length() & 0x07
+		byte_to_write |= ((bit_timing_configuration.get_phase_segment1_length() & 0x07) << 3)
+		if (bit_timing_configuration.get_num_samples_per_bit() == 3):
+			byte_to_write |= (1 << 6)
+		byte_to_write |= (1 << 7)
+		bytes_to_write.append(byte_to_write)
+
+		byte_to_write = bit_timing_configuration.get_baud_rate_prescalar() & 0x3F
+		byte_to_write |= (bit_timing_configuration.get_sjw() - 1) & 0x03
+		bytes_to_write.append(byte_to_write)
+
+		self.write_bytes(CONFIGURATION_REGISTER3_ADDRESS, bytes_to_write)
+
+	def switch_operation_modes(self, operating_mode):
+		CAN_CONTROL_REGISTER_ADDRESS = 0x0F
+		self.write_bytes(CAN_CONTROL_REGISTER_ADDRESS, operating_mode)
+
+	def get_operation_mode(self):
+		CAN_STATUS_REGISTER_ADDRESS = 0x0E
+		read_byte = self.read_bytes(CAN_STATUS_REGISTER_ADDRESS, 1)[0]
+		return OperationModes((read_byte & (0x7 << 5)) >> 5)
+
+	def initialize(self, bit_timing_configuration):
+		while (self.get_operation_mode() != OperationModes.CONFIGURATION):
+			self.reset()
+			time.sleep(.1)
+		self.configure_bit_timing(bit_timing_configuration)
+		self.switch_operation_modes(OperationModes.NORMAL)
 
 class CANMessageBuffer():
 	CAN_STANDARD_ID_MASK = 0x7FF # 11 bits
@@ -141,6 +213,75 @@ class CANMessageBuffer():
 	def get_num_data_bytes_to_send(self):
 		return self.dlc
 
+class BitTimingConfiguration():
 
+	def __init__():
+		pass
+
+	def set_sjw(self, sjw):
+		self.sjw = sjw
+
+	def get_sjw(self):
+		return self.sjw
+
+	def set_baud_rate_prescalar(self, brp):
+		self.brp = brp
+
+	def get_baud_rate_prescalar(self):
+		return self.brp
+
+	def set_propagation_segment_length(self, num_time_quanta):
+		self.propseg = num_time_quanta
+
+	def get_propagation_segment_length(self):
+		return self.propseg
+
+	def set_phase_segment1_length(self, num_time_quanta):
+		self.ps1 = num_time_quanta
+
+	def get_phase_segment1_length(self):
+		return self.ps1
+
+	def set_phase_segment2_length(self, num_time_quanta):
+		self.ps2 = num_time_quanta
+
+	def get_phase_segment2_length(self):
+		return self.ps2
+
+	def set_num_samples_per_bit(self, num_samples):
+		# Number of samples can only be 1 or 3
+		self.num_samples = num_samples
+
+	def get_num_samples_per_bit(self):
+		return self.num_samples
+
+class OperationModes(IntEnum):
+	NORMAL = 0
+	SLEEP = 1
+	LOOPBACK = 2
+	LISTEN_ONLY = 3
+	CONFIGURATION = 4
+
+# Transmits a single CAN Message
 if __name__ == "__main__":
-	mcp2515 = MCP2515(0, 0)
+	can_controller = MCP2515(bus_num=0, device_num=0)
+	can_controller.open_can_connection()
+
+	bit_timing = BitTimingConfiguration()
+	bit_timing.set_sjw(1)
+	bit_timing.set_baud_rate_prescalar(1)
+	bit_timing.set_propagation_segment_length(2)
+	bit_timing.set_phase_segment1_length(8)
+	bit_timing.set_phase_segment2_length(5)
+	bit_timing.set_num_samples_per_bit(1)	
+	can_controller.initialize(bit_timing)
+
+	tx_buffer = CANMessageBuffer()
+	tx_buffer.set_id(0x201)
+	tx_buffer.set_id_extension(False)
+	tx_buffer.set_remote_transmission(False)
+	tx_buffer.set_data_bytes_to_send([0x01, 0x04, 0x09, 0x10])
+	can_controller.load_tx_buffer(tx_buffer, can_message_buffer_number=2)
+	can_controller.send_tx_buffers(buffer2=True)
+	can_controller.wait_until_tx_message_success()
+	print("Message Transmission Success")
