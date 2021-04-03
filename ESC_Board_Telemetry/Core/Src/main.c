@@ -721,15 +721,16 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		// Stop timer
 		#warning Does the timer need to be reset so the value starts back at 0
 		HAL_TIM_Base_Stop_IT(&htim16);
+		TIM16->CNT = 0;
 		sendTelemetry = 1;
 	}
 }
 
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	#warning How is it known that this happens on timer 16
 	sendTelemetry = 1;
 	HAL_TIM_Base_Stop_IT(&htim16);
+	TIM16->CNT = 0;
 }
 /* USER CODE END 4 */
 
