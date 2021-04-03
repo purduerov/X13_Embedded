@@ -88,16 +88,7 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-static CanTxMsgTypeDef                TxMessage;
-static CanRxMsgTypeDef                RxMessage;
-ADC_ChannelConfTypeDef sConfig = {0};
-TIM_OC_InitTypeDef sConfigOC = {0};
-int ccmr_val;
-int adc_count = 0; // counter for storing adc values in array
-int adc_val [4] = {0}; // stores the adc values from all 4 adc channels
-float MAX_VOLT = 3.3; // maximum voltage value for adc conversion
-float WANTED_VOLT = 1.5; // target voltage value for which the current is too high
-int spoof_ar [4] = {0, 127, 255, 200}; // a spoof array for testing pwm without CAN
+
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -114,9 +105,9 @@ UART_HandleTypeDef huart1;
 /* USER CODE BEGIN PV */
 uint8_t adcConfigured = 0;
 
-static uint8 telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC] = {0};
-static uint8 telemetryBytesRecieved;
-static volatile uint8 sendTelemetry;
+static uint8_t telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC] = {0};
+static uint8_t telemetryBytesRecieved;
+static volatile uint8_t sendTelemetry;
 // Not sure if some of the above variables should or shouldn't be global so that
 // main properly checks them after the interrupt modifies them.
 /* USER CODE END PV */
@@ -322,7 +313,7 @@ static void MX_CAN_Init(void)
 {
 
   /* USER CODE BEGIN CAN_Init 0 */
-	CAN_FilterConfTypeDef    sFilterConfig;
+
   /* USER CODE END CAN_Init 0 */
 
   /* USER CODE BEGIN CAN_Init 1 */
@@ -345,32 +336,13 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
-    hcan.pTxMsg = &TxMessage;
-    hcan.pRxMsg = &RxMessage;
 
-     /*##-2- Configure the CAN Filter ###########################################*/
-    sFilterConfig.FilterNumber = 0;
-    sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-    sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT;
-    sFilterConfig.FilterIdHigh = 0x0000;
-    sFilterConfig.FilterIdLow = 0x0000;
-    sFilterConfig.FilterMaskIdHigh = 0x0000;
-    sFilterConfig.FilterMaskIdLow = 0x0000;
-    sFilterConfig.FilterFIFOAssignment = 0;
-    sFilterConfig.FilterActivation = ENABLE;
-    sFilterConfig.BankNumber = 14;
+    //  Enable FIFO0 Message Pending Interrupt
+    HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-    if (HAL_CAN_ConfigFilter(&hcan, &sFilterConfig) != HAL_OK)
-    {
-		Error_Handler();
-    }
+    //  Configure CAN Interrupt Callbacks
+    HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
 
-    hcan.pTxMsg->StdId = 0x200;
-    hcan.pTxMsg->ExtId = 0x01;
-    hcan.pTxMsg->RTR = CAN_RTR_DATA;
-    hcan.pTxMsg->IDE = CAN_ID_STD;
-    hcan.pTxMsg->DLC = 1;
-    hcan.pTxMsg->Data[0] = 0xFF;
   /* USER CODE END CAN_Init 2 */
 
 }
@@ -462,7 +434,7 @@ static void MX_TIM14_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM14_Init 2 */
-    tim14.Instance->SR = 0;
+    htim14.Instance->SR = 0;
     htim14.Instance->ARR = htim14.Init.Period;
 
 	// Configure Timer Interrupt Callback
@@ -660,26 +632,26 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
 		canId = 0x201;
-		tim14.Init.Period = CAN_ID_201_FLASH_MS - 1;
+		htim14.Init.Period = CAN_ID_201_FLASH_MS - 1;
 	}
 	else if (CAN_ID_202_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_202_HIGH_THRESHOLD)
 	{
 		canId = 0x202;
-		tim14.Init.Period = CAN_ID_202_FLASH_MS - 1;
+		htim14.Init.Period = CAN_ID_202_FLASH_MS - 1;
 	}
 	else if (CAN_ID_203_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_203_HIGH_THRESHOLD)
 	{
 		canId = 0x203;
-		tim14.Init.Period = CAN_ID_203_FLASH_MS - 1;
+		htim14.Init.Period = CAN_ID_203_FLASH_MS - 1;
 	}
 	else if (CAN_ID_206_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_206_HIGH_THRESHOLD)
 	{
 		canId = 0x206;
-		tim14.Init.Period = CAN_ID_206_FLASH_MS - 1;
+		htim14.Init.Period = CAN_ID_206_FLASH_MS - 1;
 	}
 	else
 	{
-		tim14.Init.Period = ERROR_FLASH_MS - 1;
+		htim14.Init.Period = ERROR_FLASH_MS - 1;
 	}
 
 	// Restart TIM14 to flash PA15 LED
@@ -719,7 +691,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	} else if (telemetryBytesRecieved == 10) {
 		// As an optimization, if we've gotten all 10 bytes, don't bother waiting and set them to be sent.
 		// Stop timer
-		#warning Does the timer need to be reset so the value starts back at 0
 		HAL_TIM_Base_Stop_IT(&htim16);
 		TIM16->CNT = 0;
 		sendTelemetry = 1;
