@@ -157,8 +157,8 @@
 #define  DATA_CACHE_ENABLE            0
 #define  USE_SPI_CRC                     0U
 
-#define  USE_HAL_ADC_REGISTER_CALLBACKS         0U /* ADC register callback disabled       */
-#define  USE_HAL_CAN_REGISTER_CALLBACKS         0U /* CAN register callback disabled       */
+#define  USE_HAL_ADC_REGISTER_CALLBACKS         1U /* ADC register callback disabled       */
+#define  USE_HAL_CAN_REGISTER_CALLBACKS         1U /* CAN register callback disabled       */
 #define  USE_HAL_COMP_REGISTER_CALLBACKS        0U /* COMP register callback disabled      */
 #define  USE_HAL_CEC_REGISTER_CALLBACKS         0U /* CEC register callback disabled       */
 #define  USE_HAL_DAC_REGISTER_CALLBACKS         0U /* DAC register callback disabled       */
@@ -172,7 +172,7 @@
 #define  USE_HAL_RTC_REGISTER_CALLBACKS         0U /* RTC register callback disabled       */
 #define  USE_HAL_SPI_REGISTER_CALLBACKS         0U /* SPI register callback disabled       */
 #define  USE_HAL_I2S_REGISTER_CALLBACKS         0U /* I2S register callback disabled       */
-#define  USE_HAL_TIM_REGISTER_CALLBACKS         0U /* TIM register callback disabled       */
+#define  USE_HAL_TIM_REGISTER_CALLBACKS         1U /* TIM register callback disabled       */
 #define  USE_HAL_TSC_REGISTER_CALLBACKS         0U /* TSC register callback disabled       */
 #define  USE_HAL_PCD_REGISTER_CALLBACKS         0U /* PCD register callback disabled       */
 

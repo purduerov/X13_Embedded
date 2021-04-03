@@ -292,6 +292,13 @@ static void MX_ADC_Init(void)
   {
     Error_Handler();
   }
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /* USER CODE BEGIN ADC_Init 2 */
 
     //  Configure ADC Interrupt Callback
@@ -439,7 +446,7 @@ static void MX_TIM14_Init(void)
 
 	// Configure Timer Interrupt Callback
 	HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM14_TimeElapsedCallback);
-    HAL_TIM_Base_Start_IT(&tim14);
+    HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END TIM14_Init 2 */
 
 }
@@ -589,6 +596,7 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
 }
 
+#if 0
 int byte_to_pwm(int byte)
 {
 	float exact;
@@ -623,8 +631,9 @@ void CAN_Spoof(int* spoof_ar)
 	TIM3->CCR4 = byte_to_pwm(200); //U3
     //necessary portion
 }
+#endif
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
+void ADC_ConversionCompleteCallback(ADC_HandleTypeDef* hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(hadc);
 	uint32_t canId;
@@ -688,6 +697,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		// The Telemetry packet should arrive in the first 10 ms.
 		// After 10 ms, send whatever has been received, which may or may not include a 10th CRC byte.
 		HAL_TIM_Base_Start_IT(&htim16);
+		telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC - 1] = 0;  // Clear the CRC byte in case this packet doesn't have one.
 	} else if (telemetryBytesRecieved == 10) {
 		// As an optimization, if we've gotten all 10 bytes, don't bother waiting and set them to be sent.
 		// Stop timer
