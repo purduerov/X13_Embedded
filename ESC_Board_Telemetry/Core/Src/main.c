@@ -518,7 +518,7 @@ static void MX_TIM16_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM16_Init 2 */
-
+	HAL_TIM_RegisterCallback(&htim16, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM16_TimeElapsedCallback);
   /* USER CODE END TIM16_Init 2 */
 
 }
@@ -673,7 +673,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	}
 }
 
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	#warning How is it known that this happens on timer 16
 	sendTelemetry = 1;
