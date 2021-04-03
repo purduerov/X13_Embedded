@@ -97,11 +97,12 @@ int main(void)
   MX_CAN_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  I2C_HandleTypeDef i2c_inst;
+  I2C_HandleTypeDef i2c_inst = MX_I2C1_Init();
   int temp_request_code[] = {0x8D};
+  int slave_address = 0x7F;
   HAL_TIM_Base_Start_IT(&htim14);
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, LEDFlash);
-  HAL_I2C_Master_Transmit_IT(i2c_inst, 0x7F << 1, &temp_request_code[0], 1);
+  HAL_I2C_Master_Transmit_IT(i2c_inst, slave_address << 1, &temp_request_code[0], 1);
   HAL_I2C_Master_Receive_IT();
 
   /* USER CODE END 2 */
