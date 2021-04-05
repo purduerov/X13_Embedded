@@ -129,7 +129,6 @@ class MCP2515():
 		tx_message_success = False
 		while (not tx_message_success):
 			byte_read = self.get_status()[0]
-			print(f"Status Byte = {byte_read}")
 			bit_mask = 1 << ((2 * buffer_number) + 2)
 			tx_message_success = not (byte_read & bit_mask)
 		return tx_message_success
@@ -166,14 +165,14 @@ class MCP2515():
 		return OperationModes((read_byte & (0x7 << 5)) >> 5)
 
 	def initialize(self, bit_timing_configuration):
+		self.reset()
+		time.sleep(.1)
 		while (self.get_operation_mode() != OperationModes.CONFIGURATION):
 			self.reset()
 			time.sleep(.1)
 		self.configure_bit_timing(bit_timing_configuration)
-		# self.switch_operation_modes(OperationModes.NORMAL)
 		while (self.get_operation_mode() != OperationModes.NORMAL):
 			self.switch_operation_modes(OperationModes.NORMAL)
-			print("Switching to Normal")
 			time.sleep(.1)
 
 class CANMessageBuffer():
@@ -279,16 +278,6 @@ if __name__ == "__main__":
 	can_controller = MCP2515(bus_num=0, device_num=0)
 	can_controller.open_can_connection()
 
-	#can_controller.reset()
-	#time.sleep(.1)
-
-	while False:
-		can_controller.write_bytes(address=0x31, data_bytes=0x43);
-		can_controller.write_bytes(address=0x32, data_bytes=0xE1);
-		time.sleep(.1) # 100ms Delay
-		print(f"0x31 Addr Read = {can_controller.read_bytes(address=0x31, num_bytes=1)}")
-		print(f"0x32 Addr Read = {can_controller.read_bytes(address=0x32, num_bytes=1)}")
-
 	bit_timing = BitTimingConfiguration()
 	bit_timing.set_sjw(1)
 	bit_timing.set_baud_rate_prescalar(1)
@@ -302,32 +291,19 @@ if __name__ == "__main__":
 	# Clear Interrupt Enable Register
 	can_controller.write_bytes(0x2B, 0x00)
 
+	TX_BUFFER_NUMBER = 0
 	tx_buffer = CANMessageBuffer()
 	tx_buffer.set_id(0x201)
 	tx_buffer.set_id_extension(False)
 	tx_buffer.set_remote_transmission(False)
 	tx_buffer.set_data_bytes_to_send([0x01, 0x04, 0x09, 0x10])
-	can_controller.load_tx_buffer(tx_buffer, can_message_buffer_number=2)
-
-	read_byte = can_controller.read_bytes(0x50, 1)
-	print(f"TX CNTRL = {read_byte}")
-	read_byte = can_controller.read_bytes(0x2C, 1)
-	print(f"CANINTF = {read_byte}")
-
-	read_bytes = can_controller.read_bytes(0x28, 3)
-	print(f"Bit Timing Registers = {read_bytes}")
-	
-	read_byte = can_controller.read_bytes(0x0E, 1)
-	print(f"CAN Status Register = {read_byte}")
+	can_controller.load_tx_buffer(tx_buffer, can_message_buffer_number=TX_BUFFER_NUMBER)
 
 	#can_controller.send_tx_buffers(buffer2=True)
-	can_controller.send_tx_buffer_with_priority(buffer_number=2, priority=3)
-
-	read_byte = can_controller.read_bytes(0x0E, 1)
-	print(f"Offical CAN Status Register = {read_byte}")
+	can_controller.send_tx_buffer_with_priority(buffer_number=TX_BUFFER_NUMBER, priority=3)
 
 	while True:
-		read_byte = can_controller.read_bytes(0x50, 1)
+		read_byte = can_controller.read_bytes(0x30, 1)
 		print(f"TX CNTRL = {read_byte}")
 		read_byte = can_controller.read_bytes(0x2C, 1)
 		print(f"CANINTF = {read_byte}")
@@ -337,5 +313,5 @@ if __name__ == "__main__":
 		print(f"Error Status Register = {read_byte}")
 		time.sleep(.1)
 
-	can_controller.wait_until_tx_message_success(2)
+	can_controller.wait_until_tx_message_success(TX_BUFFER_NUMBER)
 	print("Message Transmission Success")
