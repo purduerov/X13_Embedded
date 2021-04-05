@@ -136,7 +136,10 @@ int main(void)
   MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
 
-  HAL_TIM_Base_Start_IT(&htim14);
+  // HAL_TIM_Base_Start_IT(&htim14);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
+
+  HAL_CAN_Start(&hcan);
 
   /* USER CODE END 2 */
 
@@ -265,7 +268,7 @@ static void MX_CAN_Init(void)
   hcan.Instance = CAN;
   hcan.Init.Prescaler = 4;
   hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_4TQ;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_11TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
@@ -285,6 +288,8 @@ static void MX_CAN_Init(void)
 
   //  Configure CAN Interrupt Callbacks
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+
+  CAN_ConfigureFilterForThrusterOperation(0x201);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -339,9 +344,13 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_15;
@@ -349,6 +358,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PB3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
 }
 
@@ -378,8 +394,8 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 
 	canFilterMask.stdId = 0x7FF;
 	canFilterMask.extId = 0;
-	canFilterMask.ide = CAN_IDE_SET;
-	canFilterMask.rtr = CAN_RTR_SET;
+	canFilterMask.ide = CAN_IDE_CLEAR;
+	canFilterMask.rtr = CAN_RTR_CLEAR;
 
 	canFilterBank.id1 = &canFilterId;
 	canFilterBank.mask1 = &canFilterMask;
@@ -393,14 +409,17 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
 	uint8_t data[4];
 
-	data[0] = (uint8_t)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
-	data[1] = (uint8_t)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
-	data[2] = (uint8_t)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
-	data[3] = (uint8_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
+	data[0] = (uint8_t)((CAN_RDL0R_DATA0 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA0_Pos);
+	data[1] = (uint8_t)((CAN_RDL0R_DATA1 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA1_Pos);
+	data[2] = (uint8_t)((CAN_RDL0R_DATA2 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA2_Pos);
+	data[3] = (uint8_t)((CAN_RDL0R_DATA3 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA3_Pos);
 
 	/*
 	 * Use Data to set TIM->CCR registers for PWM generation
 	 */
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
