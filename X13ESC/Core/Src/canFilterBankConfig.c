@@ -128,6 +128,6 @@ void CAN_ConfigureFilterBankRegister32Bits(uint32_t* filterBankMSHalfwordRegiste
 	uint32_t extid = (idMaskConfig->extId & CAN_EXTID_FILTER_MASK_32BITS) << CAN_EXTID_FILTER_SHIFT_32BITS;
 
 	uint32_t fullwordRegister = stdid | rtr | ide | extid;
-	*filterBankMSHalfwordRegister = (fullwordRegister & (0xFFFF << 16));
+	*filterBankMSHalfwordRegister = (fullwordRegister & (0xFFFF << 16)) >> 16;
 	*filterBankLSHalfwordRegister = (fullwordRegister & 0xFFFF);
 }
