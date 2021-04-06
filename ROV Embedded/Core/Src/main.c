@@ -103,8 +103,8 @@ int main(void)
   int slave_address = 0x7F; // Address of the slave
   HAL_TIM_Base_Start_IT(&htim14);
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, LEDFlash);
-  HAL_I2C_Master_Transmit_IT(i2c_inst, slave_address << 1, &temp_request_code[0], 1);
-  HAL_I2C_Master_Receive_IT(i2c_inst, slave_address << 1, &temp_receive[0], 1);
+  HAL_I2C_Master_Transmit_IT(i2c_inst, slave_address << 1, &temp_request_code[0], sizeof(int));
+  HAL_I2C_Master_Receive_IT(i2c_inst, slave_address << 1, &temp_receive[0], sizeof(int));
 
   /* USER CODE END 2 */
 
