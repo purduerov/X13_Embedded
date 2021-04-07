@@ -23,6 +23,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
+#include "canFilterBankConfig.h"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,6 +34,14 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+#define SOLENOID_OPERATION_CAN_ID 0x204
+#define SOLENOID_OPERATION_CAN_FIFO_NUMBER 0
+#define SOLENOID_OPERATION_CAN_FILTER_BANK_NUMBER 0
+#define POWER_BRICK_OPERATION_CAN_ID 0x205
+#define POWER_BRICK_OPERATION_CAN_FIFO_NUMBER 1
+#define POWER_BRICK_OPERATION_CAN_FILTER_BANK_NUMBER 1
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,6 +68,13 @@ static void MX_CAN_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 void LEDFlash(TIM_HandleTypeDef *htim);
+
+void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
+
+//  Interrupt Callback Functions
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -97,6 +114,8 @@ int main(void)
   MX_CAN_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+
+  HAL_CAN_Start(&hcan);
 
   //Use variable hi2c1 if a I2C_HandleTypeDef is needed
   uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
@@ -191,11 +210,11 @@ static void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN;
-  hcan.Init.Prescaler = 16;
+  hcan.Init.Prescaler = 4;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
+  hcan.Init.TimeSeg1 = CAN_BS1_11TQ;
+  hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
   hcan.Init.AutoWakeUp = DISABLE;
@@ -207,6 +226,24 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
+
+  //  Enable FIFO0 Message Pending Interrupt and register corresponding callback
+  //  Used for activating/deactivating solenoids
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+  CAN_ConfigureFilterForCanRecvOperation(
+		  SOLENOID_OPERATION_CAN_ID,
+		  SOLENOID_OPERATION_CAN_FIFO_NUMBER,
+		  SOLENOID_OPERATION_CAN_FILTER_BANK_NUMBER);
+
+  //  Enable FIFO1 Message Pending Interrupt and register corresponding callback
+  //  Used for receiving Power Brick Communication Queries
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO1_MSG_PENDING);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO1_MSG_PENDING_CB_ID, CAN_FIFO1_RXMessagePendingCallback);
+  CAN_ConfigureFilterForCanRecvOperation(
+		  POWER_BRICK_OPERATION_CAN_ID,
+		  POWER_BRICK_OPERATION_CAN_FIFO_NUMBER,
+		  POWER_BRICK_OPERATION_CAN_FILTER_BANK_NUMBER);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -353,6 +390,86 @@ static void MX_GPIO_Init(void)
 void LEDFlash(TIM_HandleTypeDef *htim) {
 	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 }
+
+void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber)
+{
+	CAN_FilterTypeDef thrusterOperationFilter;
+	CAN_FilterBank canFilterBank;
+	CAN_FilterIDMaskConfig canFilterId;
+	CAN_FilterIDMaskConfig canFilterMask;
+
+	//  Configure Filter Bank Parameters except ID and Mask
+	thrusterOperationFilter.FilterFIFOAssignment = fifoNumber;
+	thrusterOperationFilter.FilterBank = filterBankNumber;
+	thrusterOperationFilter.FilterMode = CAN_FILTERMODE_IDMASK;
+	thrusterOperationFilter.FilterScale = CAN_FILTERSCALE_32BIT;
+	thrusterOperationFilter.FilterActivation = CAN_FILTER_ENABLE;
+
+	//  Configure only ID and Mask Filter Bank Parameters
+	canFilterBank.filterMode = CANIDFilterMode_32BitMask;
+
+	canFilterId.stdId = canId;
+	canFilterId.extId = 0;
+	canFilterId.ide = CAN_IDE_CLEAR;
+	canFilterId.rtr = CAN_RTR_CLEAR;
+
+	canFilterMask.stdId = 0x7FF;
+	canFilterMask.extId = 0;
+	canFilterMask.ide = CAN_IDE_CLEAR;
+	canFilterMask.rtr = CAN_RTR_CLEAR;
+
+	canFilterBank.id1 = &canFilterId;
+	canFilterBank.mask1 = &canFilterMask;
+
+	CAN_ConfigureFilterBank(&thrusterOperationFilter, &canFilterBank);
+	HAL_CAN_ConfigFilter(&hcan, &thrusterOperationFilter);
+}
+
+//  Handles ONLY the reception of solenoid Operation Packets
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint8_t data[4];
+
+	data[0] = (uint8_t)((CAN_RDL0R_DATA0 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA0_Pos);
+	data[1] = (uint8_t)((CAN_RDL0R_DATA1 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA1_Pos);
+	data[2] = (uint8_t)((CAN_RDL0R_DATA2 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA2_Pos);
+	data[3] = (uint8_t)((CAN_RDL0R_DATA3 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA3_Pos);
+
+	/*
+	 * Solenoid Control Code
+	 */
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+
+	//  Release Output Mailbox
+	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+}
+
+//  Handles ONLY to reception of power brick communication packets
+void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint8_t data[4];
+	uint32_t numBytesReceived;
+
+	numBytesReceived = (CAN_RDT1R_DLC & _hcan->Instance->sFIFOMailBox[1].RDTR) >> CAN_RDT1R_DLC_Pos;
+
+	data[0] = (uint8_t)((CAN_RDL1R_DATA0 & _hcan->Instance->sFIFOMailBox[1].RDLR) >> CAN_RDL1R_DATA0_Pos);
+	data[1] = (uint8_t)((CAN_RDL1R_DATA1 & _hcan->Instance->sFIFOMailBox[1].RDLR) >> CAN_RDL1R_DATA1_Pos);
+	data[2] = (uint8_t)((CAN_RDL1R_DATA2 & _hcan->Instance->sFIFOMailBox[1].RDLR) >> CAN_RDL1R_DATA2_Pos);
+	data[3] = (uint8_t)((CAN_RDL1R_DATA3 & _hcan->Instance->sFIFOMailBox[1].RDLR) >> CAN_RDL1R_DATA3_Pos);
+
+	/*
+	 * I2C Communication with Bricks
+	 */
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+
+	//  Release Output Mailbox
+	SET_BIT(_hcan->Instance->RF1R, CAN_RF1R_RFOM1);
+}
+
 /* USER CODE END 4 */
 
 /**
