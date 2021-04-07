@@ -98,19 +98,27 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
-  //I2C_HandleTypeDef i2c_inst = MX_I2C1_Init(); // Function initializes an instance of I2C_HandleTypeDef
-  I2C_HandleTypeDef i2c_inst;
+  //Use variable hi2c1 if a I2C_HandleTypeDef is needed
   uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
-  uint8_t temp_receive; // The char that will hold the temperature return data
-  uint16_t slave_address = 0x7F; // Address of the slave
+  uint8_t temp_receive_1; // The char that will hold the temperature return data of slave 1
+  uint8_t temp_receive_2; // The char that will hold the temperature return data of slave 2
+  uint16_t slave_address_1 = 0x7F; // Address of the first slave
+  uint16_t slave_address_2 = 0x23; // Address of the second slave
 
 
   HAL_TIM_Base_Start_IT(&htim14);
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, LEDFlash);
-  HAL_I2C_Master_Transmit_IT(&i2c_inst, slave_address << 1, &temp_request_code, sizeof(uint8_t));
-  // Transmits the hex code to the Bricks to request temperature
-  HAL_I2C_Master_Receive_IT(&i2c_inst, slave_address << 1, &temp_receive, sizeof(uint8_t));
-  // Receives the temperature response
+
+
+  HAL_I2C_Master_Transmit_IT(&hi2c1, slave_address_1 << 1, &temp_request_code, sizeof(uint8_t));
+  // Transmits the hex code to the first slave to request temperature
+  HAL_I2C_Master_Receive_IT(&hi2c1, slave_address_1 << 1, &temp_receive_1, sizeof(uint8_t));
+  // Receives the temperature response of the first slave
+
+  HAL_I2C_Master_Transmit_IT(&hi2c1, slave_address_2 << 1, &temp_request_code, sizeof(uint8_t));
+  // Transmits the hex code to the second slave to request temperature
+  HAL_I2C_Master_Receive_IT(&hi2c1, slave_address_2 << 1, &temp_receive_2, sizeof(uint8_t));
+  // Receives the temperature response of the second slave
 
   /* USER CODE END 2 */
 
