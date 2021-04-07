@@ -97,14 +97,15 @@ int main(void)
   MX_CAN_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  I2C_HandleTypeDef i2c_inst = MX_I2C1_Init();
-  int temp_request_code[] = {0x8D}; //The request code for asking for temperature
-  int temp_receive[1]; // The array that will hold the temperature return data
-  int slave_address = 0x7F; // Address of the slave
+  //I2C_HandleTypeDef i2c_inst = MX_I2C1_Init(); // Function initializes an instance of I2C_HandleTypeDef
+  I2C_HandleTypeDef i2c_inst;
+  uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
+  uint8_t temp_receive; // The char that will hold the temperature return data
+  uint16_t slave_address = 0x7F; // Address of the slave
   HAL_TIM_Base_Start_IT(&htim14);
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, LEDFlash);
-  HAL_I2C_Master_Transmit_IT(i2c_inst, slave_address << 1, &temp_request_code[0], sizeof(int));
-  HAL_I2C_Master_Receive_IT(i2c_inst, slave_address << 1, &temp_receive[0], sizeof(int));
+  HAL_I2C_Master_Transmit_IT(&i2c_inst, slave_address << 1, &temp_request_code, sizeof(uint8_t));
+  HAL_I2C_Master_Receive_IT(&i2c_inst, slave_address << 1, &temp_receive, sizeof(uint8_t));
 
   /* USER CODE END 2 */
 
