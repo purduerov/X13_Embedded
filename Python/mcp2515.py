@@ -25,8 +25,10 @@ class MCP2515():
 	READ_RX_BUFFER_INSTRUCTION_BASE_BYTE = 0x90
 	REQUEST_TO_SEND_INSTRUCTION_BYTE = 0x80
 	READ_STATUS_INSTRUCTION_BYTE = 0xA0
+	BIT_MODIFY_INSTRUCTION_BYTE = 0x05
 
 	# CAN RX Filter Number to Address Map
+	CAN_BUFFER_NUMBER_TO_CR_ADDRESS = [0x60, 0x70]
 	CAN_FILTER_NUMBER_TO_STARTING_ADDRESS = [
 		0x00,
 		0x04,
@@ -259,11 +261,12 @@ class MCP2515():
 		rx_control_register_address = 0x60 if (buffer_number == 0) else 0x70
 		return self.read_bytes(rx_control_register_address, num_bytes=1)
 
-	def read_rx_buffer(self, buffer_number, expected_num_bytes=8):
+	def read_rx_buffer(self, buffer_number, expected_num_data_bytes=8):
 		# RX Buffer Number = [0, 1]
 		bytes_to_write = []
-		num_bytes_to_receive = 5 + expected_num_bytes
+		num_bytes_to_receive = 5 + expected_num_data_bytes
 
+		# RXnIF Flag automatically cleared when using READ RX BUFFER Command
 		read_rx_command = MCP2515.READ_RX_BUFFER_INSTRUCTION_BASE_BYTE | (buffer_number << 2)
 		bytes_to_write.append(read_rx_command)
 		bytes_to_write.extend([0] * num_bytes_to_receive)
@@ -301,11 +304,31 @@ class MCP2515():
 
 		return can_rx_message
 
-	# TODO
 	def wait_until_message_received(self, rx_buffer_number):
-		rx_message_success = False
-		while (not rx_message_success):
+		rx_message_received = False
+		while (not rx_message_received):
 			byte_read = self.get_status()[0]
-			bit_mask = 1 << ((2 * buffer_number) + 2)
-			rx_message_success = not (byte_read & bit_mask)
-		return rx_message_success
+			bit_mask = (0x01 << rx_buffer_number)
+			rx_message_received = True if (byte_read & bit_mask) else False
+		return rx_message_received
+
+	def configure_rx_buffer(self, rx_buffer_number, is_filters_enabled=True, buffer_rollover=False):
+		# Only RX Buffer 0 has the Buffer Overflow Option
+		# Add additional bit to bit mask to allow buffer rollover control
+		if rx_buffer_number == 0:
+			mask_byte = 0x64
+		else:
+			mask_byte = 0x60
+		
+		data_byte = 0x00 if is_filters_enabled else (0x03 << 5)
+		data_byte |= (0x01 << 2) if buffer_rollover else 0x00 
+
+		# Modify Individual Bits of Control Register (CR)
+		bytes_to_write = [
+			MCP2515.BIT_MODIFY_INSTRUCTION_BYTE,
+			CAN_BUFFER_NUMBER_TO_CR_ADDRESS[rx_buffer_number],
+			mask_byte,
+			data_byte
+		]
+		self.spi_instance.xfer2(bytes_to_write)
+

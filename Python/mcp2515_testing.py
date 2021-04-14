@@ -8,11 +8,13 @@ if __name__ == "__main__":
 	can_controller = MCP2515(bus_num=0, device_num=0)
 	can_controller.open_can_connection()
 
-	initialize_mcp2515(can_controller, rx=0)
+	initialize_mcp2515(can_controller, rx=1)
 	print("Initialization Finished")
 	
 	# Clear Interrupt Enable Register
 	can_controller.write_bytes(0x2B, 0x00)
+
+	receive_can_message(can_controller)
 
 def send_can_message(mcp2515_instance):
 	TX_BUFFER_NUMBER = 0
@@ -42,8 +44,24 @@ def send_can_message(mcp2515_instance):
 
 def receive_can_message(mcp2515_instance):
 	rx_buffer_number = 0
-	print("Waiting on Message Reception...")
-	mcp2515_instance.wait_until_message_received(rx_buffer_number)
+
+	# Configure RX Control Register
+	mcp2515_instance.configure_rx_buffer(rx_buffer_number, is_filters_enabled=True, buffer_rollover=False)
+
+	# Loop to continuously read messages from an RX Buffer
+	while(True):
+		print("Waiting on Message Reception...")
+		mcp2515_instance.wait_until_message_received(rx_buffer_number)
+		print("Message Received!")
+
+		# Read Message from RX Buffer
+		rx_buffer0_bytes_read = mcp2515_instance.read_rx_buffer(rx_buffer_number, expected_num_data_bytes=4)
+		rx_buffer0 = mcp2515_instance.interpret_rx_buffer(rx_buffer0_bytes_read)
+		print(f"CAN ID = {rx_buffer0.get_id()}")
+		print(f"IDE = {rx_buffer0.get_id_extension()}")
+		print(f"RTR = {rx_buffer0.get_remote_transmission()}")
+		print(f"Number of Data Bytes = {rx_buffer0.get_num_data_bytes()}")
+		print(f"Data = {rx_buffer0.get_data_bytes()}")
 
 def initialize_mcp2515(mcp2515_instance, rx):
 	# Switch to Configuration Mode by resetting the device
@@ -53,10 +71,11 @@ def initialize_mcp2515(mcp2515_instance, rx):
 		mcp2515_instance.reset()
 		time.sleep(.1)
 
+	# Can only configure Bit Timing and RX Filters in Configuration Mode
 	configure_bit_timing(mcp2515_instance)
 	if rx:
-		configure_rx_message_mask(0)
-		configure_rx_message_filter(0x211, 0)
+		configure_rx_message_mask(mcp2515_instance, mask_number=0)
+		configure_rx_message_filter(mcp2515_instance, can_stdid=0x211, filter_number=0)
 
 	# Switch to Normal Mode
 	mcp2515_instance.configure_bit_timing(bit_timing_configuration)
