@@ -24,11 +24,18 @@
 /* USER CODE BEGIN Includes */
 
 #include "canFilterBankConfig.h"
+#include "queue_api.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+typedef struct
+{
+	CAN_TxHeaderTypeDef canTxHeader;
+	uint8_t data[8];
+} CanTxData;
 
 /* USER CODE END PTD */
 
@@ -61,6 +68,8 @@
 #define CAN_ID_206_FLASH_MS 2000
 #define ERROR_FLASH_MS 4000
 
+#define NUM_CAN_TX_QUEUE_MESSAGES 5
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -79,6 +88,9 @@ TIM_HandleTypeDef htim14;
 
 uint8_t adcConfigured = 0;
 
+int canTxQueueHandle;
+CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -93,6 +105,7 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 
@@ -136,10 +149,25 @@ int main(void)
   MX_TIM14_Init();
   /* USER CODE BEGIN 2 */
 
+  InitializeQueueModule();
+  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
+
   // HAL_TIM_Base_Start_IT(&htim14);
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
 
   HAL_CAN_Start(&hcan);
+
+  CAN_TxHeaderTypeDef canTxHeader;
+  uint8_t canTxDataBytes[4];
+  uint32_t canTxMailboxNumber;
+
+  canTxHeader.StdId = 0x211;
+  canTxHeader.DLC = 4;
+  canTxHeader.IDE = CAN_ID_STD;
+  canTxHeader.RTR = CAN_RTR_DATA;
+
+
+  HAL_CAN_AddTxMessage(&hcan, &canTxHeader, canTxDataBytes, &canTxMailboxNumber);
 
   /* USER CODE END 2 */
 
@@ -274,9 +302,9 @@ static void MX_CAN_Init(void)
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
   hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = DISABLE;
+  hcan.Init.TransmitFifoPriority = ENABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
@@ -285,11 +313,14 @@ static void MX_CAN_Init(void)
 
   //  Enable FIFO0 Message Pending Interrupt
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
-
-  //  Configure CAN Interrupt Callbacks
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
-
   CAN_ConfigureFilterForThrusterOperation(0x201);
+
+  //  Enable TX Request Complete Interrupt
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -477,6 +508,36 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 	else
 	{
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+	}
+}
+
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint32_t txMailboxNumber;
+	CanTxData* canTxDataToSend;
+
+	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
+	{
+		RemoveFromQueue(canTxQueueHandle, (void**)&canTxDataToSend);
+		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+	}
+}
+
+void SendCANMessage(CanTxData* canTxDataToSend)
+{
+	uint32_t txMailboxNumber;
+
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) != 0U)
+	{
+		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+	}
+	else
+	{
+		//  Add to CAN Tx Queue
+		if (!isQueueEmpty(canTxQueueHandle))
+		{
+			AddToQueue(canTxQueueHandle, canTxDataToSend);
+		}
 	}
 }
 
