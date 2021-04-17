@@ -90,6 +90,7 @@ uint8_t adcConfigured = 0;
 
 int canTxQueueHandle;
 CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
+CanTxData canTxPrivateMessageToSend;
 
 /* USER CODE END PV */
 
@@ -102,6 +103,7 @@ static void MX_TIM14_Init(void);
 /* USER CODE BEGIN PFP */
 
 void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
+void SendCANMessage(CanTxData* canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
@@ -157,17 +159,41 @@ int main(void)
 
   HAL_CAN_Start(&hcan);
 
-  CAN_TxHeaderTypeDef canTxHeader;
-  uint8_t canTxDataBytes[4];
-  uint32_t canTxMailboxNumber;
+  //  Create CAN Message
+  canTxPrivateMessageToSend.canTxHeader.StdId = 0x212;
+  canTxPrivateMessageToSend.canTxHeader.DLC = 4;
+  canTxPrivateMessageToSend.canTxHeader.IDE = CAN_ID_STD;
+  canTxPrivateMessageToSend.canTxHeader.RTR = CAN_RTR_DATA;
+  canTxPrivateMessageToSend.data[0] = 0x01;
+  canTxPrivateMessageToSend.data[1] = 0x04;
+  canTxPrivateMessageToSend.data[2] = 0x09;
+  canTxPrivateMessageToSend.data[3] = 0x10;
 
-  canTxHeader.StdId = 0x211;
-  canTxHeader.DLC = 4;
-  canTxHeader.IDE = CAN_ID_STD;
-  canTxHeader.RTR = CAN_RTR_DATA;
+  SendCANMessage(&canTxPrivateMessageToSend);
 
+  canTxPrivateMessageToSend.data[0] = 0x11;
+  SendCANMessage(&canTxPrivateMessageToSend);
 
-  HAL_CAN_AddTxMessage(&hcan, &canTxHeader, canTxDataBytes, &canTxMailboxNumber);
+  canTxPrivateMessageToSend.data[1] = 0x12;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[2] = 0x13;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x14;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x15;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x16;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x17;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x18;
+  SendCANMessage(&canTxPrivateMessageToSend);
 
   /* USER CODE END 2 */
 
@@ -527,16 +553,15 @@ void SendCANMessage(CanTxData* canTxDataToSend)
 {
 	uint32_t txMailboxNumber;
 
-	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) != 0U)
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0)
 	{
 		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
 	}
 	else
 	{
-		//  Add to CAN Tx Queue
-		if (!isQueueEmpty(canTxQueueHandle))
+		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
 		{
-			AddToQueue(canTxQueueHandle, canTxDataToSend);
+			; //  Queue is Full
 		}
 	}
 }
