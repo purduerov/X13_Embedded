@@ -3,19 +3,6 @@ import time
 from can_data_structures import *
 from mcp2515 import *
 
-# Transmits a single CAN Message
-if __name__ == "__main__":
-	can_controller = MCP2515(bus_num=0, device_num=0)
-	can_controller.open_can_connection()
-
-	initialize_mcp2515(can_controller, rx=1)
-	print("Initialization Finished")
-	
-	# Clear Interrupt Enable Register
-	can_controller.write_bytes(0x2B, 0x00)
-
-	receive_can_message(can_controller)
-
 def send_can_message(mcp2515_instance):
 	TX_BUFFER_NUMBER = 0
 	tx_buffer = CANMessageBuffer()
@@ -75,10 +62,9 @@ def initialize_mcp2515(mcp2515_instance, rx):
 	configure_bit_timing(mcp2515_instance)
 	if rx:
 		configure_rx_message_mask(mcp2515_instance, mask_number=0)
-		configure_rx_message_filter(mcp2515_instance, can_stdid=0x211, filter_number=0)
+		configure_rx_message_filter(mcp2515_instance, can_stdid=0x212, filter_number=0)
 
 	# Switch to Normal Mode
-	mcp2515_instance.configure_bit_timing(bit_timing_configuration)
 	while (mcp2515_instance.get_operation_mode() != OperationModes.NORMAL):
 		mcp2515_instance.switch_operation_modes(OperationModes.NORMAL)
 		time.sleep(.1)
@@ -109,3 +95,16 @@ def configure_rx_message_mask(mcp2515_instance, mask_number):
 	can_rx_message_mask.set_data_byte0(0x00)
 	can_rx_message_mask.set_data_byte1(0x00)
 	mcp2515_instance.set_can_rx_mask(mask_number, can_rx_message_mask)
+	
+# Receives a single CAN Message
+if __name__ == "__main__":
+	can_controller = MCP2515(bus_num=0, device_num=0)
+	can_controller.open_can_connection()
+
+	initialize_mcp2515(can_controller, rx=1)
+	print("Initialization Finished")
+	
+	# Clear Interrupt Enable Register
+	can_controller.write_bytes(0x2B, 0x00)
+
+	receive_can_message(can_controller)

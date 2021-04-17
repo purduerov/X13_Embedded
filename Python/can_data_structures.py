@@ -40,7 +40,7 @@ class CANMessageFilter(CANMessageID):
 		super().__init__()
 
 	def set_data_byte0(self, data_byte0):
-		self.data_byte0 = data_bytes0 & CANMessageFilter.BYTE_MASK
+		self.data_byte0 = data_byte0 & CANMessageFilter.BYTE_MASK
 
 	def get_data_byte0(self):
 		return self.data_byte0

@@ -200,62 +200,64 @@ class MCP2515():
 
 	def set_can_rx_filter(self, can_filter_number, can_filter):
 		# Filter Number = [0, 5]
+		data_bytes_to_send = []
 		base_filter_address = MCP2515.CAN_FILTER_NUMBER_TO_STARTING_ADDRESS[can_filter_number]
 
-		data_byte = (can_message_buffer.get_standard_id() & (MCP2515.BYTE_MASK << 3)) >> 3
+		data_byte = (can_filter.get_standard_id() & (MCP2515.BYTE_MASK << 3)) >> 3
 		data_bytes_to_send.append(data_byte)
 
-		data_byte = (can_message_buffer.get_standard_id() & 0x7) << 5
-		data_byte |= (can_message_buffer.get_id_extension() << 3)
+		data_byte = (can_filter.get_standard_id() & 0x7) << 5
+		data_byte |= (can_filter.get_id_extension() << 3)
 
-		if (can_message_buffer.get_id_extension()):
-			data_byte |= ((can_message_buffer.get_extended_id() & (0x3 << 16)) >> 16)
+		if (can_filter.get_id_extension()):
+			data_byte |= ((can_filter.get_extended_id() & (0x3 << 16)) >> 16)
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_extended_id() & (MCP2515.BYTE_MASK  << 8)) >> 8
+			data_byte = (can_filter.get_extended_id() & (MCP2515.BYTE_MASK  << 8)) >> 8
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_extended_id() & MCP2515.BYTE_MASK)
+			data_byte = (can_filter.get_extended_id() & MCP2515.BYTE_MASK)
 			data_bytes_to_send.append(data_byte)
 		else:
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_data_byte0() & MCP2515.BYTE_MASK)
+			data_byte = (can_filter.get_data_byte0() & MCP2515.BYTE_MASK)
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_data_byte1() & MCP2515.BYTE_MASK)
+			data_byte = (can_filter.get_data_byte1() & MCP2515.BYTE_MASK)
 			data_bytes_to_send.append(data_byte)
 
-		self.write_bytes(base_filter_address, data_bytes_to_send):
+		self.write_bytes(base_filter_address, data_bytes_to_send)
 
 	def set_can_rx_mask(self, can_mask_number, can_mask):
 		# Mask Number = [0, 1]
+		data_bytes_to_send = []
 		base_mask_address = MCP2515.CAN_MASK_NUMBER_TO_STARTING_ADDRESS[can_mask_number]
 
-		data_byte = (can_message_buffer.get_standard_id() & (MCP2515.BYTE_MASK << 3)) >> 3
+		data_byte = (can_mask.get_standard_id() & (MCP2515.BYTE_MASK << 3)) >> 3
 		data_bytes_to_send.append(data_byte)
 
-		data_byte = (can_message_buffer.get_standard_id() & 0x7) << 5
+		data_byte = (can_mask.get_standard_id() & 0x7) << 5
 
-		if (can_message_buffer.get_id_extension()):
-			data_byte |= ((can_message_buffer.get_extended_id() & (0x3 << 16)) >> 16)
+		if (can_mask.get_id_extension()):
+			data_byte |= ((can_mask.get_extended_id() & (0x3 << 16)) >> 16)
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_extended_id() & (MCP2515.BYTE_MASK  << 8)) >> 8
+			data_byte = (can_mask.get_extended_id() & (MCP2515.BYTE_MASK  << 8)) >> 8
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_extended_id() & MCP2515.BYTE_MASK)
+			data_byte = (can_mask.get_extended_id() & MCP2515.BYTE_MASK)
 			data_bytes_to_send.append(data_byte)
 		else:
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_data_byte0() & MCP2515.BYTE_MASK)
+			data_byte = (can_mask.get_data_byte0() & MCP2515.BYTE_MASK)
 			data_bytes_to_send.append(data_byte)
 
-			data_byte = (can_message_buffer.get_data_byte1() & MCP2515.BYTE_MASK)
+			data_byte = (can_mask.get_data_byte1() & MCP2515.BYTE_MASK)
 			data_bytes_to_send.append(data_byte)
 
-		self.write_bytes(base_mask_address, data_bytes_to_send):
+		self.write_bytes(base_mask_address, data_bytes_to_send)
 
 	def read_rx_control_register(self, buffer_number):
 		rx_control_register_address = 0x60 if (buffer_number == 0) else 0x70
@@ -292,6 +294,7 @@ class MCP2515():
 			rtr = (received_buffer_bytes[4] & (0x01 << 6)) >> 6
 			can_rx_message.set_remote_transmission(rtr)
 		else:
+			can_rx_message.set_extended_id(0)
 			rtr = (received_buffer_bytes[1] & (0x01 << 4)) >> 4
 			can_rx_message.set_remote_transmission(rtr)
 
@@ -326,7 +329,7 @@ class MCP2515():
 		# Modify Individual Bits of Control Register (CR)
 		bytes_to_write = [
 			MCP2515.BIT_MODIFY_INSTRUCTION_BYTE,
-			CAN_BUFFER_NUMBER_TO_CR_ADDRESS[rx_buffer_number],
+			MCP2515.CAN_BUFFER_NUMBER_TO_CR_ADDRESS[rx_buffer_number],
 			mask_byte,
 			data_byte
 		]
