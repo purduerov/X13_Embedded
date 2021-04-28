@@ -40,6 +40,10 @@ typedef struct
 typedef struct
 {
 	//  Parameters to store
+	uint8_t command;
+	uint16_t data;
+	uint8_t dev_address;
+	uint8_t read_write;
 } I2CTxData;
 
 /* USER CODE END PTD */
@@ -171,7 +175,9 @@ int main(void)
   uint8_t receiving_array[2] = {};
   uint8_t command_code = 0x01;
   uint8_t zeros = 0x0;
-  uint8_t holder_array[1] = {};
+  uint8_t i2c_read_array[1] = {};
+  I2CTxData* i2c_transfer_out_node = NULL;
+  CanTxData* CAN_transfer_out_node = NULL;
 
 
   HAL_TIM_Base_Start_IT(&htim14);
@@ -192,7 +198,6 @@ int main(void)
   HAL_I2C_Mem_Read(&hi2c1, slave_address_1 << 1, command_code, 1,
   		  holder_array, sizeof(uint8_t), 1000);
 
-
   	  //Interrupt Statements
   //HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MASTER_TX_COMPLETE_CB_ID, );
   //HAL_I2C_Master_Transmit_IT(&hi2c1, slave_address_1 << 1, &temp_request_code, sizeof(uint8_t));
@@ -211,16 +216,30 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
+	  HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
 	  if (!isQueueEmpty(i2cTxQueueHandle))
-	  {
-		  /*
-		   * Remove Node from Queue
-		   * RemoveNode(i2cTxQueueHandle, &i2cTxPrivateMessageToSend);
-		   * Send I2C Message
-		   */
-	  }
+	  	  {
+		  	  RemoveFromQueue(i2cTxQueueHandle, i2c_transfer_out_node);
+		  	  if (i2c_transfer_out_node->read_write) //It's a read
+		  	  {
+		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node->dev_address << 1,
+		  				i2c_transfer_out_node->command,
+		  				1 , i2c_read_array, sizeof(uint8_t), 1000);
+		  	  }
+		  	  else //It's a write
+		  	  {
+		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
+		  		HAL_I2C_Mem_Write(&hi2c1, slave_address_1 << 1, command_code, 1, &zeros, 2, 1000);
+		  	  }
+		  	  //SendCANMessage(transfer_out_node);
+	  		  /*
+	  		   * Remove Node from Queue
+	  		   * RemoveNode(i2cTxQueueHandle, &i2cTxPrivateMessageToSend);
+	  		   * Send I2C Message
+	  		   */
+	  	  }
+	  HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
+    /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
   }
