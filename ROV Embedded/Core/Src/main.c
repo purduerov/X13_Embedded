@@ -24,11 +24,23 @@
 /* USER CODE BEGIN Includes */
 
 #include "canFilterBankConfig.h"
+#include "queue_api.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+typedef struct
+{
+	CAN_TxHeaderTypeDef canTxHeader;
+	uint8_t data[8];
+} CanTxData;
+
+typedef struct
+{
+	//  Parameters to store
+} I2CTxData;
 
 /* USER CODE END PTD */
 
@@ -41,6 +53,10 @@
 #define POWER_BRICK_OPERATION_CAN_ID 0x205
 #define POWER_BRICK_OPERATION_CAN_FIFO_NUMBER 1
 #define POWER_BRICK_OPERATION_CAN_FILTER_BANK_NUMBER 1
+
+#define NUM_CAN_TX_QUEUE_MESSAGES 5
+
+#define NUM_I2C_TX_QUEUE_MESSAGES 10
 
 /* USER CODE END PD */
 
@@ -58,6 +74,14 @@ TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
 
+int canTxQueueHandle;
+CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
+CanTxData canTxPrivateMessageToSend;
+
+int i2cTxQueueHandle;
+I2CTxData i2cTxData[NUM_I2C_TX_QUEUE_MESSAGES];
+I2CTxData* i2cTxPrivateMessageToSend;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -70,6 +94,8 @@ static void MX_I2C1_Init(void);
 void LEDFlash(TIM_HandleTypeDef *htim);
 
 void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
+
+void SendCANMessage(CanTxData* canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
@@ -115,7 +141,26 @@ int main(void)
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
+  //  Initialize Queues for CAN TX and I2C TX
+  InitializeQueueModule();
+  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
+  CreateQueue((void*)i2cTxData, sizeof(I2CTxData), NUM_I2C_TX_QUEUE_MESSAGES, &i2cTxQueueHandle);
+
   HAL_CAN_Start(&hcan);
+
+  /*
+  //  Create CAN Message
+  canTxPrivateMessageToSend.canTxHeader.StdId = 0x212;
+  canTxPrivateMessageToSend.canTxHeader.DLC = 4;
+  canTxPrivateMessageToSend.canTxHeader.IDE = CAN_ID_STD;
+  canTxPrivateMessageToSend.canTxHeader.RTR = CAN_RTR_DATA;
+  canTxPrivateMessageToSend.data[0] = 0x01;
+  canTxPrivateMessageToSend.data[1] = 0x04;
+  canTxPrivateMessageToSend.data[2] = 0x09;
+  canTxPrivateMessageToSend.data[3] = 0x10;
+
+  SendCANMessage(&canTxPrivateMessageToSend);
+  */
 
   //Use variable hi2c1 if a I2C_HandleTypeDef is needed
   uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
@@ -167,6 +212,15 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+
+	  if (!isQueueEmpty(i2cTxQueueHandle))
+	  {
+		  /*
+		   * Remove Node from Queue
+		   * RemoveNode(i2cTxQueueHandle, &i2cTxPrivateMessageToSend);
+		   * Send I2C Message
+		   */
+	  }
 
     /* USER CODE BEGIN 3 */
   }
@@ -478,6 +532,7 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
 	uint8_t data[4];
 	uint32_t numBytesReceived;
+	I2CTxData i2cTxData;
 
 	numBytesReceived = (CAN_RDT1R_DLC & _hcan->Instance->sFIFOMailBox[1].RDTR) >> CAN_RDT1R_DLC_Pos;
 
@@ -486,15 +541,37 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	data[2] = (uint8_t)((CAN_RDL1R_DATA2 & _hcan->Instance->sFIFOMailBox[1].RDLR) >> CAN_RDL1R_DATA2_Pos);
 	data[3] = (uint8_t)((CAN_RDL1R_DATA3 & _hcan->Instance->sFIFOMailBox[1].RDLR) >> CAN_RDL1R_DATA3_Pos);
 
+	//  Release Output Mailbox
+	SET_BIT(_hcan->Instance->RF1R, CAN_RF1R_RFOM1);
+
 	/*
 	 * I2C Communication with Bricks
+	 * i2cTxData = ?
+	 * Add Message to I2C Transmit Queue
+	 * AddToQueue(i2cTxQueueHandle, &i2cTxData);
 	 */
 
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 
-	//  Release Output Mailbox
-	SET_BIT(_hcan->Instance->RF1R, CAN_RF1R_RFOM1);
+
+}
+
+void SendCANMessage(CanTxData* canTxDataToSend)
+{
+	uint32_t txMailboxNumber;
+
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0 && isQueueEmpty(canTxQueueHandle))
+	{
+		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+	}
+	else
+	{
+		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
+		{
+			; //  Queue is Full
+		}
+	}
 }
 
 /* USER CODE END 4 */
