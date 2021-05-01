@@ -40,8 +40,9 @@ typedef struct
 typedef struct
 {
 	//  Parameters to store
+	uint8_t num_data;
 	uint8_t command;
-	uint16_t data;
+	uint8_t data[8];
 	uint8_t dev_address;
 	uint8_t read_write;
 } I2CTxData;
@@ -232,7 +233,8 @@ int main(void)
 		  	  else //It's a write
 		  	  {
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
-		  		HAL_I2C_Mem_Write(&hi2c1, slave_address_1 << 1, command_code, 1, &zeros, 2, 1000);
+		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node->dev_address << 1, i2c_transfer_out_node->command, 1,
+		  				&i2c_transfer_out_node->data, 2, 1000);
 		  	  }
 		  	  //SendCANMessage(transfer_out_node);
 	  		  /*
@@ -555,6 +557,8 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	uint8_t data[4];
 	uint32_t numBytesReceived;
 	I2CTxData i2cTxData;
+	uint32_t data_for_queue = 0;
+	uint8_t read_write_holder = 0x0;
 
 	numBytesReceived = (CAN_RDT1R_DLC & _hcan->Instance->sFIFOMailBox[1].RDTR) >> CAN_RDT1R_DLC_Pos;
 
@@ -565,6 +569,18 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF1R, CAN_RF1R_RFOM1);
+
+
+
+	i2cTxData->data[0] = data[3];
+	i2cTxData->data[1] = data[4];
+	i2cTxData->command = data[1];
+	i2cTxData->dev_address = data[0] << 7 ? 0x23 : 0x7f;
+	read_write_holder = data[0];
+	read_write_holder = read_write_holder << 6;
+	read_write_holder = read_write_holder >> 7;
+	i2cTxData->read_write = read_write_holder;
+	i2cTxData->num_data = numBytesReceived - 2;
 
 	/*
 	 * I2C Communication with Bricks
