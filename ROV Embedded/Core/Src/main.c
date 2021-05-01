@@ -247,7 +247,10 @@ int main(void)
 		  	{
 		  		CAN_transfer_out_node->data[i + 2] = i2c_transfer_out_node->data[i];
 		  	}
-		  	SendCANMessage(CAN_transfer_out_node);
+		  	//SendCANMessage(CAN_transfer_out_node);
+
+		  	AddToQueue(canTxQueueHandle, CAN_transfer_out_node);
+
 		  	  //SendCANMessage(transfer_out_node);
 	  		  /*
 	  		   * Remove Node from Queue
