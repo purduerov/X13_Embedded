@@ -193,10 +193,13 @@ int main(void)
     // Blocking Statements
   // if writing() HAL_I2C_Mem_Write(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
   //uint16_t MemAddSize, uint8_t *pData, uint16_t Size, uint32_t Timeout)
+
+  /*
   hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
   HAL_I2C_Mem_Write(&hi2c1, slave_address_1 << 1, command_code, 1, &zeros, 2, 1000);
   HAL_I2C_Mem_Read(&hi2c1, slave_address_1 << 1, command_code, 1,
-  		  holder_array, sizeof(uint8_t), 1000);
+  		  i2c_read_array, sizeof(uint8_t), 1000);
+  */
 
   	  //Interrupt Statements
   //HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MASTER_TX_COMPLETE_CB_ID, );
