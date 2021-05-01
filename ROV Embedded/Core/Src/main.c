@@ -582,6 +582,8 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	i2cTxData->read_write = read_write_holder;
 	i2cTxData->num_data = numBytesReceived - 2;
 
+	AddToQueue(i2cTxQueueHandle, i2cTxData);
+
 	/*
 	 * I2C Communication with Bricks
 	 * i2cTxData = ?
