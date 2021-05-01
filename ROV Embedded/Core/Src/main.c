@@ -169,14 +169,14 @@ int main(void)
   */
 
   //Use variable hi2c1 if a I2C_HandleTypeDef is needed
-  uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
+/*  uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
   uint8_t temp_receive_1; // The char that will hold the temperature return data of slave 1
   uint8_t temp_receive_2; // The char that will hold the temperature return data of slave 2
   uint16_t slave_address_1 = 0x7F; // Address of the first slave
   uint16_t slave_address_2 = 0x23; // Address of the second slave
   uint8_t receiving_array[2] = {};
   uint8_t command_code = 0x01;
-  uint8_t zeros = 0x0;
+  uint8_t zeros = 0x0;*/
   uint8_t i2c_read_array[1] = {};
   I2CTxData* i2c_transfer_out_node = NULL;
   CanTxData* CAN_transfer_out_node = NULL;
@@ -221,21 +221,21 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	  HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
 	  if (!isQueueEmpty(i2cTxQueueHandle))
 	  	  {
+		  	  HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
 		  	  RemoveFromQueue(i2cTxQueueHandle, i2c_transfer_out_node);
 		  	  if (i2c_transfer_out_node->read_write) //It's a read
 		  	  {
 		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node->dev_address << 1,
 		  				i2c_transfer_out_node->command,
-		  				1 , i2c_read_array, sizeof(uint8_t), 1000);
+		  				sizeof(uint8_t), i2c_transfer_out_node->data, sizeof(uint8_t), 1000);
 		  	  }
 		  	  else //It's a write
 		  	  {
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
-		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node->dev_address << 1, i2c_transfer_out_node->command, 1,
-		  				&i2c_transfer_out_node->data, 2, 1000);
+		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node->dev_address << 1, i2c_transfer_out_node->command, sizeof(uint8_t),
+		  				i2c_transfer_out_node->data, i2c_transfer_out_node->num_data, 1000);
 		  	  }
 		  	  //SendCANMessage(transfer_out_node);
 	  		  /*
@@ -564,7 +564,6 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	uint8_t data[4];
 	uint32_t numBytesReceived;
 	I2CTxData i2cTxData;
-	uint32_t data_for_queue = 0;
 	uint8_t read_write_holder = 0x0;
 
 	numBytesReceived = (CAN_RDT1R_DLC & _hcan->Instance->sFIFOMailBox[1].RDTR) >> CAN_RDT1R_DLC_Pos;
@@ -579,17 +578,17 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 
 
 
-	i2cTxData->data[0] = data[3];
-	i2cTxData->data[1] = data[4];
-	i2cTxData->command = data[1];
-	i2cTxData->dev_address = data[0] << 7 ? 0x23 : 0x7f;
+	i2cTxData.data[0] = data[3];
+	i2cTxData.data[1] = data[4];
+	i2cTxData.command = data[1];
+	i2cTxData.dev_address = data[0] << 7 ? 0x23 : 0x7f;
 	read_write_holder = data[0];
 	read_write_holder = read_write_holder << 6;
 	read_write_holder = read_write_holder >> 7;
-	i2cTxData->read_write = read_write_holder;
-	i2cTxData->num_data = numBytesReceived - 2;
+	i2cTxData.read_write = read_write_holder;
+	i2cTxData.num_data = numBytesReceived - 2;
 
-	AddToQueue(i2cTxQueueHandle, i2cTxData);
+	AddToQueue(i2cTxQueueHandle, &i2cTxData);
 
 	/*
 	 * I2C Communication with Bricks
