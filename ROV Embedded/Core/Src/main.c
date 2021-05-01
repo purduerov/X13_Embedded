@@ -104,6 +104,7 @@ void SendCANMessage(CanTxData* canTxDataToSend);
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
 
 /* USER CODE END PFP */
 
@@ -341,6 +342,12 @@ static void MX_CAN_Init(void)
 		  POWER_BRICK_OPERATION_CAN_ID,
 		  POWER_BRICK_OPERATION_CAN_FIFO_NUMBER,
 		  POWER_BRICK_OPERATION_CAN_FILTER_BANK_NUMBER);
+
+  //  Enable TX Request Complete Interrupt
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -593,6 +600,18 @@ void SendCANMessage(CanTxData* canTxDataToSend)
 		{
 			; //  Queue is Full
 		}
+	}
+}
+
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint32_t txMailboxNumber;
+	CanTxData* canTxDataToSend;
+
+	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
+	{
+		RemoveFromQueue(canTxQueueHandle, (void**)&canTxDataToSend);
+		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
 	}
 }
 
