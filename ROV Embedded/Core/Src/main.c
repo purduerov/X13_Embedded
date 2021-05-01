@@ -87,6 +87,9 @@ int i2cTxQueueHandle;
 I2CTxData i2cTxData[NUM_I2C_TX_QUEUE_MESSAGES];
 I2CTxData* i2cTxPrivateMessageToSend;
 
+uint16_t slave_address_1 = 0x7F; // Address of the first slave
+uint16_t slave_address_2 = 0x23; // Address of the second slave
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -156,7 +159,7 @@ int main(void)
 
   /*
   //  Create CAN Message
-  canTxPrivateMessageToSend.canTxHeader.StdId = 0x212;
+  canTxPrivateMessageToSend.canTxHeader.StdId = 0x215;
   canTxPrivateMessageToSend.canTxHeader.DLC = 4;
   canTxPrivateMessageToSend.canTxHeader.IDE = CAN_ID_STD;
   canTxPrivateMessageToSend.canTxHeader.RTR = CAN_RTR_DATA;
@@ -169,25 +172,21 @@ int main(void)
   */
 
   //Use variable hi2c1 if a I2C_HandleTypeDef is needed
-/*  uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
-  uint8_t temp_receive_1; // The char that will hold the temperature return data of slave 1
-  uint8_t temp_receive_2; // The char that will hold the temperature return data of slave 2
-  uint16_t slave_address_1 = 0x7F; // Address of the first slave
-  uint16_t slave_address_2 = 0x23; // Address of the second slave
-  uint8_t receiving_array[2] = {};
-  uint8_t command_code = 0x01;
-  uint8_t zeros = 0x0;*/
-  uint8_t i2c_read_array[1] = {};
+//  uint8_t temp_request_code = 0x8D; // The request code for asking for temperature
+//  uint8_t temp_receive_1; // The char that will hold the temperature return data of slave 1
+//  uint8_t temp_receive_2; // The char that will hold the temperature return data of slave 2
+//  uint8_t receiving_array[2] = {};
+//  uint8_t command_code = 0x01;
+//  uint8_t zeros = 0x0;
+//  uint8_t i2c_read_array[1] = {};
   I2CTxData* i2c_transfer_out_node = NULL;
   CanTxData* CAN_transfer_out_node = NULL;
+  uint8_t can_data0 = 0;
 
 
   HAL_TIM_Base_Start_IT(&htim14);
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, LEDFlash);
 
-
-  //HAL_I2C_Master_Transmit(&hi2c1, slave_address_1 << 1, &temp_request_code, sizeof(uint8_t), 1000000);
-  //HAL_I2C_Master_Receive(&hi2c1, slave_address_1 << 1, receiving_array, sizeof(uint8_t) * 3, 1000000);
   //HAL_I2C_Mem_Read(&hi2c1, slave_address_1 << 1, temp_request_code, 1,
 		  //receiving_array, sizeof(uint16_t), 1000000);
   //HAL_StatusTypeDef HAL_I2C_Mem_Read(I2C_HandleTypeDef *hi2c, uint16_t DevAddress, uint16_t MemAddress,
@@ -210,11 +209,6 @@ int main(void)
   //HAL_I2C_Master_Receive_IT(&hi2c1, slave_address_1 << 1, &temp_receive_1, sizeof(uint8_t));
   // Receives the temperature response of the first slave
 
-  //HAL_I2C_Master_Transmit_IT(&hi2c1, slave_address_2 << 1, &temp_request_code, sizeof(uint8_t));
-  // Transmits the hex code to the second slave to request temperature
-  //HAL_I2C_Master_Receive_IT(&hi2c1, slave_address_2 << 1, &temp_receive_2, sizeof(uint8_t));
-  // Receives the temperature response of the second slave
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -236,6 +230,23 @@ int main(void)
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
 		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node->dev_address << 1, i2c_transfer_out_node->command, sizeof(uint8_t),
 		  				i2c_transfer_out_node->data, i2c_transfer_out_node->num_data, 1000);
+
+		  		CAN_transfer_out_node->canTxHeader.StdId = 0x215;
+		  		CAN_transfer_out_node->canTxHeader.DLC = i2c_transfer_out_node->num_data;
+		  		CAN_transfer_out_node->canTxHeader.IDE = CAN_ID_STD;
+		  		CAN_transfer_out_node->canTxHeader.RTR = CAN_RTR_DATA;
+
+		  		can_data0 = 0;
+		  		can_data0 = i2c_transfer_out_node->num_data << 2;
+		  		can_data0 |= i2c_transfer_out_node->read_write << 1;
+		  		can_data0 |= i2c_transfer_out_node->dev_address == slave_address_1 ? 0 : 1;
+		  		CAN_transfer_out_node->data[0] = can_data0;
+		  		CAN_transfer_out_node->data[1] = i2c_transfer_out_node->command;
+		  		for (int i = 0; i < i2c_transfer_out_node->num_data; i++)
+		  		{
+		  			CAN_transfer_out_node->data[i + 2] = i2c_transfer_out_node->data[i];
+		  		}
+		  		SendCANMessage(CAN_transfer_out_node);
 		  	  }
 		  	  //SendCANMessage(transfer_out_node);
 	  		  /*
@@ -243,8 +254,9 @@ int main(void)
 	  		   * RemoveNode(i2cTxQueueHandle, &i2cTxPrivateMessageToSend);
 	  		   * Send I2C Message
 	  		   */
+		  	  HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
 	  	  }
-	  HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -581,7 +593,7 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	i2cTxData.data[0] = data[3];
 	i2cTxData.data[1] = data[4];
 	i2cTxData.command = data[1];
-	i2cTxData.dev_address = data[0] << 7 ? 0x23 : 0x7f;
+	i2cTxData.dev_address = data[0] << 7 ? slave_address_2 : slave_address_1;
 	read_write_holder = data[0];
 	read_write_holder = read_write_holder << 6;
 	read_write_holder = read_write_holder >> 7;
