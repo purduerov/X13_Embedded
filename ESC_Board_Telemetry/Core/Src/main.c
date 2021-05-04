@@ -42,6 +42,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "canFilterBankConfig.h"
+
     volatile int check_error = 0;
     volatile int check_state = 0;
 /* USER CODE END Includes */
@@ -110,6 +112,8 @@ TIM_HandleTypeDef htim16;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+uint8_t adcConfigured = 0;
+
 static uint8 telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC] = {0};
 static uint8 telemetryBytesRecieved;
 static volatile uint8 sendTelemetry;
@@ -127,6 +131,14 @@ static void MX_USART1_UART_Init(void);
 static void MX_TIM14_Init(void);
 static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
+
+void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
+
+//  Interrupt Callback Functions
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
+void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
+void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 
 /* USER CODE END PFP */
 
@@ -175,33 +187,9 @@ int main(void)
   MX_TIM14_Init();
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
-/*
-    nano_wait(60000000);
-        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-        TIM3->CCR1 = 95;
-        TIM3->CCR2 = 95;
-        TIM3->CCR3 = 95;
-        TIM3->CCR4 = 95;
-*/
-	//nano_wait(30000000);
-	//nano_wait(30000000);
 
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
-	TIM3->CCR1 = 75;
-	TIM3->CCR2 = 75;
-	TIM3->CCR3 = 75;
-	TIM3->CCR4 = 75;
+    HAL_TIM_Base_Start_IT(&htim14);
 
-
-    if (HAL_CAN_Receive_IT(&hcan, CAN_FIFO0) != HAL_OK)
-    {
-	    Error_Handler();
-    }
-    //HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -211,16 +199,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-		check_error = HAL_CAN_GetError(&hcan);
-		if(check_error != 0)
-		{
-			__HAL_CAN_RESET_HANDLE_STATE(&hcan);
-				if (HAL_CAN_Receive_IT(&hcan, CAN_FIFO0) != HAL_OK)
-				{
-					Error_Handler();
-				}
-				check_error = 0;
-		}
 
 		if(sendTelemetry) {
 			if(telemetryBytesRecieved >= TELEMETRY_PACKET_SIZE_REG) {
@@ -323,14 +301,13 @@ static void MX_ADC_Init(void)
   {
     Error_Handler();
   }
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
   /* USER CODE BEGIN ADC_Init 2 */
+
+    //  Configure ADC Interrupt Callback
+    HAL_ADC_RegisterCallback(&hadc, HAL_ADC_CONVERSION_COMPLETE_CB_ID, ADC_ConversionCompleteCallback);
+
+    //  Calibrate ADC
+    HAL_ADCEx_Calibration_Start(&hadc);
 
   /* USER CODE END ADC_Init 2 */
 
@@ -486,6 +463,10 @@ static void MX_TIM14_Init(void)
   }
   /* USER CODE BEGIN TIM14_Init 2 */
     tim14.Instance->SR = 0;
+    htim14.Instance->ARR = htim14.Init.Period;
+
+	// Configure Timer Interrupt Callback
+	HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM14_TimeElapsedCallback);
     HAL_TIM_Base_Start_IT(&tim14);
   /* USER CODE END TIM14_Init 2 */
 
@@ -584,6 +565,58 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
+{
+	CAN_FilterTypeDef thrusterOperationFilter;
+	CAN_FilterBank canFilterBank;
+	CAN_FilterIDMaskConfig canFilterId;
+	CAN_FilterIDMaskConfig canFilterMask;
+
+	//  Configure Filter Bank Parameters except ID and Mask
+	thrusterOperationFilter.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	thrusterOperationFilter.FilterBank = 0;
+	thrusterOperationFilter.FilterMode = CAN_FILTERMODE_IDMASK;
+	thrusterOperationFilter.FilterScale = CAN_FILTERSCALE_32BIT;
+	thrusterOperationFilter.FilterActivation = CAN_FILTER_ENABLE;
+
+	//  Configure only ID and Mask Filter Bank Parameters
+	canFilterBank.filterMode = CANIDFilterMode_32BitMask;
+
+	canFilterId.stdId = canId;
+	canFilterId.extId = 0;
+	canFilterId.ide = CAN_IDE_CLEAR;
+	canFilterId.rtr = CAN_RTR_CLEAR;
+
+	canFilterMask.stdId = 0x7FF;
+	canFilterMask.extId = 0;
+	canFilterMask.ide = CAN_IDE_SET;
+	canFilterMask.rtr = CAN_RTR_SET;
+
+	canFilterBank.id1 = &canFilterId;
+	canFilterBank.mask1 = &canFilterMask;
+
+	CAN_ConfigureFilterBank(&thrusterOperationFilter, &canFilterBank);
+	HAL_CAN_ConfigFilter(&hcan, &thrusterOperationFilter);
+}
+
+//  Handles ONLY the Reception of Thruster Operation CAN Packets
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint8_t data[4];
+
+	data[0] = (uint8_t)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
+	data[1] = (uint8_t)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
+	data[2] = (uint8_t)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
+	data[3] = (uint8_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
+
+	/*
+	 * Use Data to set TIM->CCR registers for PWM generation
+	 */
+
+	//  Release Output Mailbox
+	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+}
+
 int byte_to_pwm(int byte)
 {
 	float exact;
@@ -622,6 +655,7 @@ void CAN_Spoof(int* spoof_ar)
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(hadc);
+	uint32_t canId;
 
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
@@ -650,9 +684,27 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 
 	// Restart TIM14 to flash PA15 LED
 	HAL_ADC_Stop_IT(hadc);
-	tim14.Instance->ARR = tim14.Init.Period;
-	HAL_TIM_Base_Start_IT(&tim14);
 
+	// Configure CAN Filter for Thrusters and
+	CAN_ConfigureFilterForThrusterOperation(canId);
+	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
+
+	// Restart TIM14 to flash PA15 LED
+	htim14.Instance->ARR = htim14.Init.Period;
+	HAL_TIM_Base_Start_IT(&htim14);
+
+}
+
+void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
+{
+	if (!adcConfigured)
+	{
+		HAL_TIM_Base_Stop_IT(_htim);
+		HAL_ADC_Start_IT(&hadc);
+		adcConfigured = 1;
+	} else {
+		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
+	}
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
