@@ -130,6 +130,7 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 
 /* USER CODE END PFP */
 
@@ -199,6 +200,7 @@ int main(void)
 			telemetryBytesRecieved = 0;
 			sendTelemetry = 0;
 		}
+		asm volatile("wfi");
     }
   /* USER CODE END 3 */
 }
