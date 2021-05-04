@@ -142,6 +142,7 @@ void SendCANMessage(CanTxData* canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
@@ -679,7 +680,7 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 {
 	uint32_t txMailboxNumber;
-	CanTxData* canTxDataToSend;
+	CanTxData *canTxDataToSend;
 
 	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
 	{
