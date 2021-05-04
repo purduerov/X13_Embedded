@@ -43,13 +43,18 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "canFilterBankConfig.h"
+#include "queue_api.h"
 
-    volatile int check_error = 0;
-    volatile int check_state = 0;
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+typedef struct
+{
+	CAN_TxHeaderTypeDef canTxHeader;
+	uint8_t data[8];
+} CanTxData;
 
 /* USER CODE END PTD */
 
@@ -81,6 +86,8 @@
 #define CAN_ID_206_FLASH_MS 2000
 #define ERROR_FLASH_MS 4000
 
+#define NUM_CAN_TX_QUEUE_MESSAGES 5
+
 #define TELEMETRY_PACKET_SIZE_REG 9
 #define TELEMETRY_PACKET_SIZE_CRC (TELEMETRY_PACKET_SIZE_REG + 1)
 #define TELEMETRY_PACKET_ARRIVAL_MS 10
@@ -105,6 +112,10 @@ UART_HandleTypeDef huart1;
 /* USER CODE BEGIN PV */
 uint8_t adcConfigured = 0;
 
+int canTxQueueHandle;
+CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
+CanTxData canTxPrivateMessageToSend;
+
 static uint8_t telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC] = {0};
 static uint8_t telemetryBytesRecieved;
 static volatile uint8_t sendTelemetry;
@@ -123,7 +134,11 @@ static void MX_TIM14_Init(void);
 static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 
+void EnablePWMOutput(TIM_HandleTypeDef *_htim);
+int byte_to_pwm(int byte);  //  Imported from X12 ESC Code
+
 void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
+void SendCANMessage(CanTxData* canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
@@ -136,13 +151,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-/*static void nano_wait(int t) {
-        asm("             mov r0,%0\n"
-                "repeatttt:\n"
-                "             sub r0,#14\n"
-                "             bgt repeatttt\n"
-                : : "r"(t) : "r0", "cc");
-} */
+
 /* USER CODE END 0 */
 
 /**
@@ -152,6 +161,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -180,7 +190,14 @@ int main(void)
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
-    HAL_TIM_Base_Start_IT(&htim14);
+  InitializeQueueModule();
+  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
+
+  //  Enable PWM Outputs to ESCs
+  EnablePWMOutput(&htim3);
+
+  //  Start Timer to begin sampling ESC_ID with ADC
+  HAL_TIM_Base_Start_IT(&htim14);
 
   /* USER CODE END 2 */
 
@@ -200,7 +217,7 @@ int main(void)
 			telemetryBytesRecieved = 0;
 			sendTelemetry = 0;
 		}
-		asm volatile("wfi");
+		// asm volatile("wfi");
     }
   /* USER CODE END 3 */
 }
@@ -213,7 +230,6 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
@@ -237,12 +253,6 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1;
-  PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
@@ -289,25 +299,18 @@ static void MX_ADC_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
-  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /** Configure for the selected ADC regular channel to be converted.
-  */
-  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN ADC_Init 2 */
 
-    //  Configure ADC Interrupt Callback
-    HAL_ADC_RegisterCallback(&hadc, HAL_ADC_CONVERSION_COMPLETE_CB_ID, ADC_ConversionCompleteCallback);
+  //  Configure ADC Interrupt Callback
+  HAL_ADC_RegisterCallback(&hadc, HAL_ADC_CONVERSION_COMPLETE_CB_ID, ADC_ConversionCompleteCallback);
 
-    //  Calibrate ADC
-    HAL_ADCEx_Calibration_Start(&hadc);
+  //  Calibrate ADC
+  HAL_ADCEx_Calibration_Start(&hadc);
 
   /* USER CODE END ADC_Init 2 */
 
@@ -327,30 +330,37 @@ static void MX_CAN_Init(void)
 
   /* USER CODE BEGIN CAN_Init 1 */
 
+  //  125kbps baud rate is configured
+  //  HAL_CAN_Init() enters and stays in Initialization Mode
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN;
   hcan.Init.Prescaler = 4;
   hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_4TQ;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_11TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
-  hcan.Init.AutoWakeUp = ENABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.AutoWakeUp = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = DISABLE;
+  hcan.Init.TransmitFifoPriority = ENABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
 
-    //  Enable FIFO0 Message Pending Interrupt
-    HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+  //  Enable FIFO0 Message Pending Interrupt
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+  CAN_ConfigureFilterForThrusterOperation(0x201);
 
-    //  Configure CAN Interrupt Callbacks
-    HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+  //  Enable TX Request Complete Interrupt
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -373,13 +383,15 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE BEGIN TIM3_Init 1 */
 
+  //  ESC will update at a frequency of 100Hz
+  //  TIM3 Count will reset every 10ms
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 160;
+  htim3.Init.Prescaler = 160 - 1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000;
+  htim3.Init.Period = 500 - 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -391,7 +403,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 95;
+  sConfigOC.Pulse = 75;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -433,9 +445,9 @@ static void MX_TIM14_Init(void)
 
   /* USER CODE END TIM14_Init 1 */
   htim14.Instance = TIM14;
-  htim14.Init.Prescaler = 8000-1;
+  htim14.Init.Prescaler = 8000 - 1;
   htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = NUM_ADC_INIT_WAIT_MS-1;
+  htim14.Init.Period = 65535;
   htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
@@ -443,12 +455,14 @@ static void MX_TIM14_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM14_Init 2 */
-    htim14.Instance->SR = 0;
-    htim14.Instance->ARR = htim14.Init.Period;
 
-	// Configure Timer Interrupt Callback
-	HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM14_TimeElapsedCallback);
-    HAL_TIM_Base_Start_IT(&htim14);
+  //  Reconfigure Timer ARR to count up to NUM_ADC_INIT_WAIT_MS ms until ADC conversion start
+  htim14.Init.Period = NUM_ADC_INIT_WAIT_MS - 1;
+  htim14.Instance->ARR = htim14.Init.Period;
+
+  //  Configure Timer Interrupt Callback
+  HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM14_TimeElapsedCallback);
+
   /* USER CODE END TIM14_Init 2 */
 
 }
@@ -480,6 +494,9 @@ static void MX_TIM16_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN TIM16_Init 2 */
+
+    htim14.Instance->ARR = htim14.Init.Period;
+
 	HAL_TIM_RegisterCallback(&htim16, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM16_TimeElapsedCallback);
   /* USER CODE END TIM16_Init 2 */
 
@@ -570,8 +587,8 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 
 	canFilterMask.stdId = 0x7FF;
 	canFilterMask.extId = 0;
-	canFilterMask.ide = CAN_IDE_SET;
-	canFilterMask.rtr = CAN_RTR_SET;
+	canFilterMask.ide = CAN_IDE_CLEAR;
+	canFilterMask.rtr = CAN_RTR_CLEAR;
 
 	canFilterBank.id1 = &canFilterId;
 	canFilterBank.mask1 = &canFilterMask;
@@ -583,57 +600,26 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	uint8_t data[4];
+	int data[4];
 
-	data[0] = (uint8_t)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
-	data[1] = (uint8_t)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
-	data[2] = (uint8_t)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
-	data[3] = (uint8_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
-
-	/*
-	 * Use Data to set TIM->CCR registers for PWM generation
-	 */
+	//  Get Data Bytes received from RX FIFO
+	data[0] = (int)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
+	data[1] = (int)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
+	data[2] = (int)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
+	data[3] = (int)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
-}
 
-#if 0
-int byte_to_pwm(int byte)
-{
-	float exact;
-	exact = byte * (40.0/255.0) + 55.0;
-	return (exact + 0.5); //rounds up the integer by adding 0.5
-}
+	htim3.Instance->CR1 |= TIM_CR1_UDIS;  //  Disable UEV Generation
 
-void HAL_CAN_RxCpltCallback(CAN_HandleTypeDef* hcan)
-{
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-	//If ID is correct and the amount of data being sent is four bytes, converts that data into PWM signals
-	if((hcan->pRxMsg->StdId == canId))
-	{
-		TIM3->CCR1 = byte_to_pwm((int)hcan->pRxMsg->Data[7]); //U7
-		TIM3->CCR2 = byte_to_pwm((int)hcan->pRxMsg->Data[6]); //U2
-		TIM3->CCR3 = byte_to_pwm((int)hcan->pRxMsg->Data[5]); //U1
-		TIM3->CCR4 = byte_to_pwm((int)hcan->pRxMsg->Data[4]); //U3
-	}
-    //necessary portion that restarts the CAN receiving
-	if (HAL_CAN_Receive_IT(hcan, CAN_FIFO0) != HAL_OK)
-	{
-		Error_Handler();
-	}
-}
+	htim3.Instance->CCR1 = byte_to_pwm(data[0]);
+	htim3.Instance->CCR2 = byte_to_pwm(data[1]);
+	htim3.Instance->CCR3 = byte_to_pwm(data[2]);
+	htim3.Instance->CCR4 = byte_to_pwm(data[3]);
 
-//a function that was used to test the PWM signals without the use of CAN
-void CAN_Spoof(int* spoof_ar)
-{
-	TIM3->CCR1 = byte_to_pwm(0); //U7
-	TIM3->CCR2 = byte_to_pwm(127); //U2
-	TIM3->CCR3 = byte_to_pwm(255); //U1
-	TIM3->CCR4 = byte_to_pwm(200); //U3
-    //necessary portion
+	htim3.Instance->CR1 &= ~TIM_CR1_UDIS;  //  Re-enable UEV Generation
 }
-#endif
 
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef* hadc)
 {
@@ -690,6 +676,55 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 	}
 }
 
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint32_t txMailboxNumber;
+	CanTxData* canTxDataToSend;
+
+	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
+	{
+		RemoveFromQueue(canTxQueueHandle, (void**)&canTxDataToSend);
+		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+	}
+}
+
+void SendCANMessage(CanTxData* canTxDataToSend)
+{
+	uint32_t txMailboxNumber;
+
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0 && isQueueEmpty(canTxQueueHandle))
+	{
+		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+	}
+	else
+	{
+		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
+		{
+			; //  Queue is Full
+		}
+	}
+}
+
+void EnablePWMOutput(TIM_HandleTypeDef *_htim)
+{
+	//  Set HAL Timer Channel Status
+	TIM_CHANNEL_STATE_SET_ALL(_htim, HAL_TIM_CHANNEL_STATE_BUSY);
+
+	//  Enable outputs for all 4 PWM Channels
+	_htim->Instance->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E);
+
+	//  Enable Timer Counter
+	_htim->Instance->CR1 |= TIM_CR1_CEN;
+}
+
+//  Imported from X12 ESC Code
+int byte_to_pwm(int byte)
+{
+	float exact;
+	exact = byte * (40.0/255.0) + 55.0;
+	return (exact + 0.5); //rounds up the integer by adding 0.5
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	telemetryBuffer[telemetryBytesRecieved] = huart->pRxBuffPtr[0];
@@ -724,18 +759,8 @@ void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-    /* User can add his own implementation to report the HAL error return state */
-	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
-	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_2);
-	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_3);
-	HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_4);
-	HAL_ADC_Stop_IT(&hadc);
+  /* User can add his own implementation to report the HAL error return state */
 
-	/* while(1)
-	{
-	    HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-	    nano_wait(10000000);
-	} */
   /* USER CODE END Error_Handler_Debug */
 }
 

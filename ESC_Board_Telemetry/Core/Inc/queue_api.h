@@ -2,7 +2,7 @@
  * queue_api.h
  *
  *  Created on: Apr 16, 2021
- *      Author: Conner
+ *      Author: Conne
  */
 
 #ifndef INC_QUEUE_API_H_
