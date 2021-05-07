@@ -80,7 +80,7 @@ QueueErrorCode AddToQueue(int queueHandle, void* data)
 	return QUEUE_SUCCESS;
 }
 
-QueueErrorCode RemoveFromQueue(int queueHandle, void** data)
+QueueErrorCode RemoveFromQueue(int queueHandle, void* data)
 {
 	QueueNode* queueNode;
 
@@ -90,8 +90,9 @@ QueueErrorCode RemoveFromQueue(int queueHandle, void** data)
 		return QUEUE_EMPTY;
 	}
 
+	//  Copy data from Queue Node to data
+	byteCopy((uint8_t*)queueNode->data, (uint8_t*)data, queues[queueHandle].elementSizeBytes);
 	AddNodeToQueue(&(freeQueues[queueHandle]), queueNode);
-	*data = queueNode->data;
 
 	return QUEUE_SUCCESS;
 }

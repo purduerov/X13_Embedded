@@ -179,8 +179,8 @@ int main(void)
 //  uint8_t command_code = 0x01;
 //  uint8_t zeros = 0x0;
 //  uint8_t i2c_read_array[1] = {};
-  I2CTxData* i2c_transfer_out_node = NULL;
-  CanTxData* CAN_transfer_out_node = NULL;
+  I2CTxData i2c_transfer_out_node;
+  CanTxData CAN_transfer_out_node;
   uint8_t can_data0 = 0;
 
 
@@ -218,38 +218,38 @@ int main(void)
 	  if (!isQueueEmpty(i2cTxQueueHandle))
 	  	  {
 		  	  HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
-		  	  RemoveFromQueue(i2cTxQueueHandle, i2c_transfer_out_node);
-		  	  if (i2c_transfer_out_node->read_write) //It's a read
+		  	  RemoveFromQueue(i2cTxQueueHandle, &i2c_transfer_out_node);
+		  	  if (i2c_transfer_out_node.read_write) //It's a read
 		  	  {
-		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node->dev_address << 1,
-		  				i2c_transfer_out_node->command,
-		  				sizeof(uint8_t), i2c_transfer_out_node->data, sizeof(uint8_t), 1000);
+		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node.dev_address << 1,
+		  				i2c_transfer_out_node.command,
+		  				sizeof(uint8_t), i2c_transfer_out_node.data, sizeof(uint8_t), 1000);
 		  	  }
 		  	  else //It's a write
 		  	  {
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
-		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node->dev_address << 1, i2c_transfer_out_node->command, sizeof(uint8_t),
-		  				i2c_transfer_out_node->data, i2c_transfer_out_node->num_data, 1000);
+		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command, sizeof(uint8_t),
+		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, 1000);
 		  	  }
 
-		  	CAN_transfer_out_node->canTxHeader.StdId = 0x215;
-		  	CAN_transfer_out_node->canTxHeader.DLC = i2c_transfer_out_node->num_data;
-		  	CAN_transfer_out_node->canTxHeader.IDE = CAN_ID_STD;
-		  	CAN_transfer_out_node->canTxHeader.RTR = CAN_RTR_DATA;
+		  	CAN_transfer_out_node.canTxHeader.StdId = 0x215;
+		  	CAN_transfer_out_node.canTxHeader.DLC = i2c_transfer_out_node.num_data;
+		  	CAN_transfer_out_node.canTxHeader.IDE = CAN_ID_STD;
+		  	CAN_transfer_out_node.canTxHeader.RTR = CAN_RTR_DATA;
 
 		  	can_data0 = 0;
-		  	can_data0 = i2c_transfer_out_node->num_data << 2;
-		  	can_data0 |= i2c_transfer_out_node->read_write << 1;
-		  	can_data0 |= i2c_transfer_out_node->dev_address == slave_address_1 ? 0 : 1;
-		  	CAN_transfer_out_node->data[0] = can_data0;
-		  	CAN_transfer_out_node->data[1] = i2c_transfer_out_node->command;
-		  	for (int i = 0; i < i2c_transfer_out_node->num_data; i++)
+		  	can_data0 = i2c_transfer_out_node.num_data << 2;
+		  	can_data0 |= i2c_transfer_out_node.read_write << 1;
+		  	can_data0 |= i2c_transfer_out_node.dev_address == slave_address_1 ? 0 : 1;
+		  	CAN_transfer_out_node.data[0] = can_data0;
+		  	CAN_transfer_out_node.data[1] = i2c_transfer_out_node.command;
+		  	for (int i = 0; i < i2c_transfer_out_node.num_data; i++)
 		  	{
-		  		CAN_transfer_out_node->data[i + 2] = i2c_transfer_out_node->data[i];
+		  		CAN_transfer_out_node.data[i + 2] = i2c_transfer_out_node.data[i];
 		  	}
 		  	//SendCANMessage(CAN_transfer_out_node);
 
-		  	AddToQueue(canTxQueueHandle, CAN_transfer_out_node);
+		  	AddToQueue(canTxQueueHandle, &CAN_transfer_out_node);
 
 		  	  //SendCANMessage(transfer_out_node);
 	  		  /*
@@ -638,12 +638,12 @@ void SendCANMessage(CanTxData* canTxDataToSend)
 void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 {
 	uint32_t txMailboxNumber;
-	CanTxData* canTxDataToSend;
+	CanTxData canTxDataToSend;
 
 	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
 	{
-		RemoveFromQueue(canTxQueueHandle, (void**)&canTxDataToSend);
-		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+		RemoveFromQueue(canTxQueueHandle, (void*)&canTxDataToSend);
+		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend.canTxHeader), canTxDataToSend.data, &txMailboxNumber);
 	}
 }
 

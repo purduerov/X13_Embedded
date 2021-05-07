@@ -25,7 +25,7 @@ typedef enum
 void InitializeQueueModule();
 QueueErrorCode CreateQueue(void* dataArray, int elementSizeBytes, int numArrayElements, int* queueHandle);
 QueueErrorCode AddToQueue(int queueHandle, void* data);
-QueueErrorCode RemoveFromQueue(int queueHandle, void** data);
+QueueErrorCode RemoveFromQueue(int queueHandle, void* data);
 void FreeQueue(int queueHandle);
 int isQueueEmpty(int queueHandle);
 int getQueueSize(int queueHandle);
