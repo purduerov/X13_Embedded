@@ -118,6 +118,7 @@ CanTxData canTxPrivateMessageToSend;
 
 static uint8_t telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC] = {0};
 static uint8_t telemetryBytesRecieved;
+static uint8_t uartRxBuffer;
 static volatile uint8_t sendTelemetry;
 // Not sure if some of the above variables should or shouldn't be global so that
 // main properly checks them after the interrupt modifies them.
@@ -307,7 +308,7 @@ static void MX_ADC_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
-  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  sConfig.SamplingTime = ADC_SAMPLETIME_71CYCLES_5;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -351,15 +352,15 @@ static void MX_CAN_Init(void)
   hcan.Instance = CAN;
   hcan.Init.Prescaler = 4;
   hcan.Init.Mode = CAN_MODE_NORMAL;
-  hcan.Init.SyncJumpWidth = CAN_SJW_4TQ;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_11TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
-  hcan.Init.AutoWakeUp = ENABLE;
-  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.AutoWakeUp = DISABLE;
+  hcan.Init.AutoRetransmission = ENABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = DISABLE;
+  hcan.Init.TransmitFifoPriority = ENABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
@@ -402,11 +403,11 @@ static void MX_TIM3_Init(void)
   //  TIM3 Count will reset every 10ms
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 160;
+  htim3.Init.Prescaler = 160 - 1;
   htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000;
+  htim3.Init.Period = 500 - 1;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
   {
     Error_Handler();
@@ -418,7 +419,7 @@ static void MX_TIM3_Init(void)
     Error_Handler();
   }
   sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 95;
+  sConfigOC.Pulse = 75;
   sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
   if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
@@ -460,9 +461,9 @@ static void MX_TIM14_Init(void)
 
   /* USER CODE END TIM14_Init 1 */
   htim14.Instance = TIM14;
-  htim14.Init.Prescaler = 8000-1;
+  htim14.Init.Prescaler = 8000 - 1;
   htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = NUM_ADC_INIT_WAIT_MS-1;
+  htim14.Init.Period = 65535;
   htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
@@ -549,7 +550,13 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   HAL_StatusTypeDef status = HAL_UART_RegisterCallback(&huart1, HAL_UART_RX_COMPLETE_CB_ID, HAL_UART_RxCpltCallback);
+  (void)status;
+  // HAL_StatusTypeDef status1 = HAL_UART_RegisterCallback(&huart1, , );
+
+  status = HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
+  (void)status;
   /* USER CODE END USART1_Init 2 */
+
 }
 
 /**
@@ -750,20 +757,27 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		// After 10 ms, send whatever has been received, which may or may not include a 10th CRC byte.
 		HAL_TIM_Base_Start_IT(&htim16);
 		telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC - 1] = 0;  // Clear the CRC byte in case this packet doesn't have one.
-	} else if (telemetryBytesRecieved == 10) {
+	} else if(telemetryBytesRecieved == 10) {
 		// As an optimization, if we've gotten all 10 bytes, don't bother waiting and set them to be sent.
 		// Stop timer
 		HAL_TIM_Base_Stop_IT(&htim16);
 		TIM16->CNT = 0;
 		sendTelemetry = 1;
 	}
+	HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
 }
 
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 {
+	// Set the flag for main to send telemetry data
 	sendTelemetry = 1;
+
+	// Stop the timer.
 	HAL_TIM_Base_Stop_IT(&htim16);
 	TIM16->CNT = 0;
+
+	// Prep for the next receive.
+	// HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
 }
 /* USER CODE END 4 */
 
