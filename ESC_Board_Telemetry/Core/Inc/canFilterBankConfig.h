@@ -2,7 +2,7 @@
  * canFilterBankConfig.h
  *
  *  Created on: Feb 25, 2021
- *      Author: Conne
+ *      Author: Conner
  */
 
 #ifndef INC_CANFILTERBANKCONFIG_H_
@@ -41,12 +41,12 @@ typedef enum
 typedef struct
 {
 	CAN_IDFilterMode filterMode;
-	CAN_FilterIDMaskConfig* id1;
-	CAN_FilterIDMaskConfig* id2;
-	CAN_FilterIDMaskConfig* id3;
-	CAN_FilterIDMaskConfig* id4;
-	CAN_FilterIDMaskConfig* mask1;
-	CAN_FilterIDMaskConfig* mask2;
+	CAN_FilterIDMaskConfig *id1;
+	CAN_FilterIDMaskConfig *id2;
+	CAN_FilterIDMaskConfig *id3;
+	CAN_FilterIDMaskConfig *id4;
+	CAN_FilterIDMaskConfig *mask1;
+	CAN_FilterIDMaskConfig *mask2;
 } CAN_FilterBank;
 
 typedef enum
@@ -58,11 +58,11 @@ typedef enum
 	CAN_FILTER_BANK_INVALID_FILTER_MODE = 4
 } CAN_FilterBankConfigError;
 
-CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank);
-CAN_FilterBankConfigError CAN_ConfigureFilterBank16Bits(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank);
-CAN_FilterBankConfigError CAN_ConfigureFilterBank32Bits(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank);
-void CAN_ConfigureFilterBankRegister16Bits(uint32_t* filterBankHalfwordRegister, CAN_FilterIDMaskConfig* idMaskConfig);
-void CAN_ConfigureFilterBankRegister32Bits(uint32_t* filterBankMSHalfwordRegister, uint32_t* filterBankLSHalfwordRegister, CAN_FilterIDMaskConfig* idMaskConfig);
+CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank);
+CAN_FilterBankConfigError CAN_ConfigureFilterBank16Bits(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank);
+CAN_FilterBankConfigError CAN_ConfigureFilterBank32Bits(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank);
+void CAN_ConfigureFilterBankRegister16Bits(uint32_t *filterBankHalfwordRegister, CAN_FilterIDMaskConfig *idMaskConfig);
+void CAN_ConfigureFilterBankRegister32Bits(uint32_t *filterBankMSHalfwordRegister, uint32_t *filterBankLSHalfwordRegister, CAN_FilterIDMaskConfig *idMaskConfig);
 
 
 #endif /* INC_CANFILTERBANKCONFIG_H_ */

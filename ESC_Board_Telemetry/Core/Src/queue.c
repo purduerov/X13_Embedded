@@ -6,6 +6,7 @@
  */
 
 #include "queue.h"
+#include <stdint.h>
 #include <string.h>
 
 #define NUM_QUEUES 5

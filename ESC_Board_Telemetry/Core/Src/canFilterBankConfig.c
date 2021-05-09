@@ -21,7 +21,7 @@
 #define CAN_EXTID_FILTER_MASK_32BITS 0x3FFFF
 #define CAN_EXTID_FILTER_SHIFT_32BITS 3
 
-CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank)
+CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank)
 {
 	CAN_FilterBankConfigError canFilterBankErrorStatus;
 
@@ -58,7 +58,7 @@ CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef* canFilterIn
 	return canFilterBankErrorStatus;
 }
 
-CAN_FilterBankConfigError CAN_ConfigureFilterBank16Bits(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank)
+CAN_FilterBankConfigError CAN_ConfigureFilterBank16Bits(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank)
 {
 	if (canFilterInstance->FilterMode != CAN_FILTERMODE_IDLIST && canFilterInstance->FilterMode != CAN_FILTERMODE_IDMASK)
 	{
@@ -86,7 +86,7 @@ CAN_FilterBankConfigError CAN_ConfigureFilterBank16Bits(CAN_FilterTypeDef* canFi
 	return CAN_FILTER_BANK_NO_ERROR;
 }
 
-CAN_FilterBankConfigError CAN_ConfigureFilterBank32Bits(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank)
+CAN_FilterBankConfigError CAN_ConfigureFilterBank32Bits(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank)
 {
 	if (canFilterInstance->FilterMode != CAN_FILTERMODE_IDLIST && canFilterInstance->FilterMode != CAN_FILTERMODE_IDMASK)
 	{
@@ -110,7 +110,7 @@ CAN_FilterBankConfigError CAN_ConfigureFilterBank32Bits(CAN_FilterTypeDef* canFi
 	return CAN_FILTER_BANK_NO_ERROR;
 }
 
-void CAN_ConfigureFilterBankRegister16Bits(uint32_t* filterBankHalfwordRegister, CAN_FilterIDMaskConfig* idMaskConfig)
+void CAN_ConfigureFilterBankRegister16Bits(uint32_t *filterBankHalfwordRegister, CAN_FilterIDMaskConfig *idMaskConfig)
 {
 	uint32_t stdid = (idMaskConfig->stdId & CAN_STDID_FILTER_MASK) << CAN_STDID_FILTER_SHIFT_16BITS;
 	uint32_t rtr = ((idMaskConfig->rtr == CAN_RTR_SET) ? 1 : 0) << CAN_RTR_FILTER_SHIFT_16BITS;
@@ -120,7 +120,7 @@ void CAN_ConfigureFilterBankRegister16Bits(uint32_t* filterBankHalfwordRegister,
 	*filterBankHalfwordRegister = stdid | rtr | ide | extid;
 }
 
-void CAN_ConfigureFilterBankRegister32Bits(uint32_t* filterBankMSHalfwordRegister, uint32_t* filterBankLSHalfwordRegister, CAN_FilterIDMaskConfig* idMaskConfig)
+void CAN_ConfigureFilterBankRegister32Bits(uint32_t *filterBankMSHalfwordRegister, uint32_t *filterBankLSHalfwordRegister, CAN_FilterIDMaskConfig *idMaskConfig)
 {
 	uint32_t stdid = (idMaskConfig->stdId & CAN_STDID_FILTER_MASK) << CAN_STDID_FILTER_SHIFT_32BITS;
 	uint32_t rtr = ((idMaskConfig->rtr == CAN_RTR_SET) ? 1 : 0) << CAN_RTR_FILTER_SHIFT_32BITS;
@@ -128,6 +128,6 @@ void CAN_ConfigureFilterBankRegister32Bits(uint32_t* filterBankMSHalfwordRegiste
 	uint32_t extid = (idMaskConfig->extId & CAN_EXTID_FILTER_MASK_32BITS) << CAN_EXTID_FILTER_SHIFT_32BITS;
 
 	uint32_t fullwordRegister = stdid | rtr | ide | extid;
-	*filterBankMSHalfwordRegister = (fullwordRegister & (0xFFFF << 16));
+	*filterBankMSHalfwordRegister = (fullwordRegister & (0xFFFF << 16)) >> 16;
 	*filterBankLSHalfwordRegister = (fullwordRegister & 0xFFFF);
 }

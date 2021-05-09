@@ -691,6 +691,7 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	if(_hcan->Instance->sFIFOMailBox[0].RIR >> CAN_ID_RIR_SHIFT_AMOUNT != canId) {
 		uint8_t REEE = 0xFF;
 		(void)REEE;
+		Error_Handler();
 		return;
 	}
 

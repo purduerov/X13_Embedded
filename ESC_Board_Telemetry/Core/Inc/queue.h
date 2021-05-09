@@ -9,7 +9,6 @@
 #define INC_QUEUE_H_
 
 #include "queue_api.h"
-#include "stm32f0xx_hal.h"
 
 typedef struct _QueueNode
 {
