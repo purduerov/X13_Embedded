@@ -54,6 +54,7 @@
 #define CAN_ID_202_HIGH_THRESHOLD (CAN_ID_203_LOW_THRESHOLD - 1)
 #define CAN_ID_203_HIGH_THRESHOLD (CAN_ID_206_LOW_THRESHOLD - 1)
 #define CAN_ID_206_HIGH_THRESHOLD ADC_MAX_VALUE
+#define CAN_ID_ERROR 0x206
 
 #define CAN_ID_201_FLASH_MS 1000
 #define CAN_ID_202_FLASH_MS 500
@@ -297,7 +298,7 @@ static void MX_CAN_Init(void)
   //  Configure CAN Interrupt Callbacks
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
 
-  CAN_ConfigureFilterForThrusterOperation(0x201);
+  CAN_ConfigureFilterForThrusterOperation(CAN_ID_ERROR);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -488,7 +489,8 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	uint8_t *data = (uint8_t *)&(_hcan->Instance->sFIFOMailBox[0].RDHR);
+	uint32_t data_32 = _hcan->Instance->sFIFOMailBox[0].RDHR;
+	uint8_t *data = (uint8_t *)&data_32;
 
 	/*
 	 * Use Data to set TIM->CCR registers for PWM generation
