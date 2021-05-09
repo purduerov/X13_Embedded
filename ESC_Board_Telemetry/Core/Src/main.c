@@ -100,6 +100,8 @@ typedef struct
 #define CAN_ID_206_FLASH_MS 2000
 #define ERROR_FLASH_MS 4000
 
+#define CAN_ID_RIR_SHIFT_AMOUNT 21
+
 #define NUM_CAN_TX_QUEUE_MESSAGES 5
 
 #define SEND_ID_INC 0x100U
@@ -258,7 +260,8 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim14);
 
   // Start waiting for a telemetry packet to be sent.
-  HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
+  // HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
+	#warning "Receiving telemetry disabled";
 
   /* USER CODE END 2 */
 
@@ -416,9 +419,9 @@ static void MX_CAN_Init(void)
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
   hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = ENABLE;
+  hcan.Init.AutoRetransmission = DISABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = ENABLE;
+  hcan.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
@@ -427,7 +430,10 @@ static void MX_CAN_Init(void)
 
   //  Enable FIFO0 Message Pending Interrupt
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+
+  //  Configure CAN Interrupt Callbacks
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+
   CAN_ConfigureFilterForThrusterOperation();
 
   //  Enable TX Request Complete Interrupt
@@ -676,10 +682,19 @@ static void CAN_ConfigureFilterForThrusterOperation()
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	uint8_t *data = (uint32_t *)&(_hcan->Instance->sFIFOMailBox[0].RDHR);
+	uint32_t data_32 = _hcan->Instance->sFIFOMailBox[0].RDHR;
+	uint8_t *data = (uint8_t *)&data_32;
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+
+	if(_hcan->Instance->sFIFOMailBox[0].RIR >> CAN_ID_RIR_SHIFT_AMOUNT != canId) {
+		uint8_t REEE = 0xFF;
+		(void)REEE;
+		return;
+	}
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 
 	htim3.Instance->CR1 |= TIM_CR1_UDIS;  //  Disable UEV Generation
 
