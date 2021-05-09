@@ -142,10 +142,6 @@ typedef enum {
 	ROV_TLM_COUNT
 } rov_tlm_index_t;
 
-//#define USE_OLD 0
-#ifndef USE_OLD
-	#define USE_OLD 1
-#endif
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -192,11 +188,7 @@ static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 
 void EnablePWMOutput(TIM_HandleTypeDef *_htim);
-#if USE_OLD
-	static uint32_t byte_to_pwm(uint32_t byte);  //  Imported from X12 ESC Code
-#else
-	static uint32_t byte_to_pwm(uint8_t byte);
-#endif
+static uint32_t byte_to_pwm(uint8_t byte);
 
 static void CAN_ConfigureFilterForThrusterOperation(void);
 void SendCANMessage(CanTxData *canTxDataToSend);
@@ -264,6 +256,9 @@ int main(void)
 
   //  Start Timer to begin sampling ESC_ID with ADC
   HAL_TIM_Base_Start_IT(&htim14);
+
+  // Start waiting for a telemetry packet to be sent.
+  HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
 
   /* USER CODE END 2 */
 
@@ -526,7 +521,7 @@ static void MX_TIM14_Init(void)
   htim14.Instance = TIM14;
   htim14.Init.Prescaler = 8000 - 1;
   htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = 65535;
+  htim14.Init.Period = NUM_ADC_INIT_WAIT_MS - 1;
   htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
@@ -564,7 +559,7 @@ static void MX_TIM16_Init(void)
   htim16.Instance = TIM16;
   htim16.Init.Prescaler = 8000-1;
   htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim16.Init.Period = TELEMETRY_PACKET_ARRIVAL_MS-1;
+  htim16.Init.Period = TLM_PACKET_ARRIVAL_MS-1;
   htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim16.Init.RepetitionCounter = 0;
   htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -613,10 +608,6 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   HAL_StatusTypeDef status = HAL_UART_RegisterCallback(&huart1, HAL_UART_RX_COMPLETE_CB_ID, HAL_UART_RxCpltCallback);
-  (void)status;
-  // HAL_StatusTypeDef status1 = HAL_UART_RegisterCallback(&huart1, , );
-
-  // status = HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
   (void)status;
   /* USER CODE END USART1_Init 2 */
 
@@ -685,19 +676,7 @@ static void CAN_ConfigureFilterForThrusterOperation()
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	#if USE_OLD
-	uint32_t data[4];
-
-	//  Get Data Bytes received from RX FIFO
-	data[0] = (uint32_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
-	data[1] = (uint32_t)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
-	data[2] = (uint32_t)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
-	data[3] = (uint32_t)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
-	#else
-
-	uint8_t *data = &(_hcan->Instance->sFIFOMailBox[0].RDHR);
-
-	#endif
+	uint8_t *data = (uint32_t *)&(_hcan->Instance->sFIFOMailBox[0].RDHR);
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
@@ -808,18 +787,10 @@ void EnablePWMOutput(TIM_HandleTypeDef *_htim)
 }
 
 //  Imported from X12 ESC Code
-#if USE_OLD
-uint32_t byte_to_pwm(uint32_t byte)
-#else
 uint32_t byte_to_pwm(uint8_t byte)
-#endif
 {
 	float exact;
-	#if USE_OLD
-	exact = byte * (40.0F/255.0F) + 55.0F;
-	#else
 	exact = (uint32_t)byte * (40.0F/255.0F) + 55.0F;
-	#endif
 	return (uint32_t) (exact + 0.5F); //rounds up the integer by adding 0.5
 }
 

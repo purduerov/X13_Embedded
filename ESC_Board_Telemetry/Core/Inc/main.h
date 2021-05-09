@@ -61,7 +61,7 @@ void Error_Handler(void);
 
 /* Private defines -----------------------------------------------------------*/
 #define NUM_ADC_INIT_WAIT_MS 500
-#define TELEMETRY_PACKET_ARRIVAL_MS 10U
+#define TLM_PACKET_ARRIVAL_MS 10
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
