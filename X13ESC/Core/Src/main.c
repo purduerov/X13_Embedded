@@ -73,6 +73,7 @@ ADC_HandleTypeDef hadc;
 
 CAN_HandleTypeDef hcan;
 
+TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
@@ -87,7 +88,10 @@ static void MX_GPIO_Init(void);
 static void MX_CAN_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM14_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
+
+void EnablePWMOutput(TIM_HandleTypeDef *_htim);
 
 void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
 
@@ -95,6 +99,8 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
+
+static uint32_t byte_to_pwm(uint8_t byte);
 
 /* USER CODE END PFP */
 
@@ -134,8 +140,10 @@ int main(void)
   MX_CAN_Init();
   MX_ADC_Init();
   MX_TIM14_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
+  EnablePWMOutput(&htim3);
   // HAL_TIM_Base_Start_IT(&htim14);
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
 
@@ -296,6 +304,67 @@ static void MX_CAN_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+  TIM_OC_InitTypeDef sConfigOC = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 160 - 1;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim3.Init.Period = 500 - 1;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 75;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+  HAL_TIM_MspPostInit(&htim3);
+
+}
+
+/**
   * @brief TIM14 Initialization Function
   * @param None
   * @retval None
@@ -329,6 +398,7 @@ static void MX_TIM14_Init(void)
   //  Configure Timer Interrupt Callback
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM14_TimeElapsedCallback);
 
+  HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END TIM14_Init 2 */
 
 }
@@ -370,6 +440,17 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void EnablePWMOutput(TIM_HandleTypeDef *_htim) {
+	//  Set HAL Timer Channel Status
+	TIM_CHANNEL_STATE_SET_ALL(_htim, HAL_TIM_CHANNEL_STATE_BUSY);
+
+	//  Enable outputs for all 4 PWM Channels
+	_htim->Instance->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E);
+
+	//  Enable Timer Counter
+	_htim->Instance->CR1 |= TIM_CR1_CEN;
+}
+
 void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 {
 	CAN_FilterTypeDef thrusterOperationFilter;
@@ -407,12 +488,7 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	uint8_t data[4];
-
-	data[0] = (uint8_t)((CAN_RDL0R_DATA0 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA0_Pos);
-	data[1] = (uint8_t)((CAN_RDL0R_DATA1 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA1_Pos);
-	data[2] = (uint8_t)((CAN_RDL0R_DATA2 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA2_Pos);
-	data[3] = (uint8_t)((CAN_RDL0R_DATA3 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA3_Pos);
+	uint8_t *data = (uint8_t *)&(_hcan->Instance->sFIFOMailBox[0].RDHR);
 
 	/*
 	 * Use Data to set TIM->CCR registers for PWM generation
@@ -423,12 +499,21 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+
+	htim3.Instance->CR1 |= TIM_CR1_UDIS;  //  Disable UEV Generation
+
+	htim3.Instance->CCR1 = byte_to_pwm(data[0]);
+	htim3.Instance->CCR2 = byte_to_pwm(data[1]);
+	htim3.Instance->CCR3 = byte_to_pwm(data[2]);
+	htim3.Instance->CCR4 = byte_to_pwm(data[3]);
+
+	htim3.Instance->CR1 &= ~TIM_CR1_UDIS;  //  Re-enable UEV Generation
 }
 
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(_hadc);
-	uint32_t canId;
+	uint32_t canId = 0x206;
 
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
@@ -447,7 +532,6 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	}
 	else if (CAN_ID_206_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_206_HIGH_THRESHOLD)
 	{
-		canId = 0x206;
 		htim14.Init.Period = CAN_ID_206_FLASH_MS - 1;
 	}
 	else
@@ -478,6 +562,13 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 	{
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 	}
+}
+
+static uint32_t byte_to_pwm(uint8_t byte)
+{
+	float exact;
+	exact = (uint32_t)byte * (40.0F/255.0F) + 55.0F;
+	return (uint32_t) (exact + 0.5F); //rounds up the integer by adding 0.5
 }
 
 /* USER CODE END 4 */
