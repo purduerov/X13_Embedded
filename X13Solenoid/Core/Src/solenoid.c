@@ -2,41 +2,30 @@
  * solenoid.c
  *
  *  Created on: Nov 7, 2020
- *      Author: Conne
+ *      Author: Conner
  */
 
 #include "solenoid.h"
 
-#define NUM_SOLENOIDS 6
+static Solenoid solenoidArray[NUM_SOLENOIDS];
 
-Solenoid solenoidArray[NUM_SOLENOIDS];
+static uint8_ft configuredNumberOfSolenoids;
 
-int configuredNumberOfSolenoids;
-
-SolenoidErrorCode verifySolenoidIndex(int solenoidIndex)
+SolenoidErrorCode verifySolenoidIndex(uint8_ft solenoidIndex)
 {
-	if (solenoidIndex >= NUM_SOLENOIDS || solenoidIndex < 0)
+	if (solenoidIndex >= NUM_SOLENOIDS)
 	{
 		return SOLENOID_INVALID_SOLENOID_INDEX;
 	}
 	return SOLENOID_SUCCESS;
 }
 
-SolenoidErrorCode verifyNumberOfSolenoids(int numSolenoids)
-{
-	if (numSolenoids > NUM_SOLENOIDS || numSolenoids < 0)
-	{
-		return SOLENOID_INVALID_NUMBER_OF_SOLENOIDS;
-	}
-	return SOLENOID_SUCCESS;
-}
-
-void configureNumberOfSolenoids(int numSolenoids)
+void configureNumberOfSolenoids(uint8_ft numSolenoids)
 {
 	configuredNumberOfSolenoids = numSolenoids;
 }
 
-SolenoidErrorCode addSolenoid(int solenoidIndex, GPIO_TypeDef* gpioPort, uint16_t gpioPin)
+SolenoidErrorCode addSolenoid(uint8_ft solenoidIndex, GPIO_TypeDef *gpioPort, uint16_t gpioPin)
 {
 	//  Check Parameters
 	if (gpioPort == NULL)
@@ -54,11 +43,11 @@ SolenoidErrorCode addSolenoid(int solenoidIndex, GPIO_TypeDef* gpioPort, uint16_
 	return SOLENOID_SUCCESS;
 }
 
-SolenoidErrorCode addSolenoids(int numberOfSolenoids, int* solenoidIndices, GPIO_TypeDef** gpioPorts, uint16_t* gpioPins)
+SolenoidErrorCode addSolenoids(uint8_ft numberOfSolenoids, uint8_ft restrict const *solenoidIndices, GPIO_TypeDef restrict * const *gpioPorts, uint16_t restrict const *gpioPins)
 {
 	SolenoidErrorCode errorCode;
 
-	for (int i = 0; i < numberOfSolenoids; i++)
+	for (uint8_ft i = 0; i < numberOfSolenoids; ++i)
 	{
 		errorCode = addSolenoid(solenoidIndices[i], gpioPorts[i], gpioPins[i]);
 		if (errorCode != SOLENOID_SUCCESS)
@@ -70,7 +59,7 @@ SolenoidErrorCode addSolenoids(int numberOfSolenoids, int* solenoidIndices, GPIO
 	return SOLENOID_SUCCESS;
 }
 
-void configureSolenoid(int solenoidIndex, GPIO_InitTypeDef* gpioInit)
+void configureSolenoid(uint8_ft solenoidIndex, GPIO_InitTypeDef *gpioInit)
 {
 	//  Disable Pin associated with Solenoid
 	disableSolenoid(solenoidIndex);
@@ -82,37 +71,41 @@ void configureSolenoid(int solenoidIndex, GPIO_InitTypeDef* gpioInit)
 	HAL_GPIO_Init(solenoidArray[solenoidIndex].port, gpioInit);
 }
 
-void configureSolenoids(GPIO_InitTypeDef* gpioInit)
+void configureSolenoids(GPIO_InitTypeDef *gpioInit)
 {
-	for (int i = 0; i < configuredNumberOfSolenoids; i++)
+	for (uint8_ft i = 0; i < configuredNumberOfSolenoids; ++i)
 	{
 		configureSolenoid(i, gpioInit);
 	}
 }
 
-void enableSolenoid(int solenoidIndex)
+void enableSolenoid(uint8_ft solenoidIndex)
 {
 	HAL_GPIO_WritePin(solenoidArray[solenoidIndex].port, solenoidArray[solenoidIndex].pin, GPIO_PIN_SET);
 }
 
-void enableSolenoids()
+void enableSolenoids(void)
 {
-	for (int i = 0; i < configuredNumberOfSolenoids; i++)
+	for (uint8_ft i = 0; i < configuredNumberOfSolenoids; ++i)
 	{
 		enableSolenoid(i);
 	}
 }
 
-void disableSolenoid(int solenoidIndex)
+void disableSolenoid(uint8_ft solenoidIndex)
 {
 	HAL_GPIO_WritePin(solenoidArray[solenoidIndex].port, solenoidArray[solenoidIndex].pin, GPIO_PIN_RESET);
 }
 
-void disableSolenoids()
+void disableSolenoids(void)
 {
-	for (int i = 0; i < configuredNumberOfSolenoids; i++)
+	for (uint8_ft i = 0; i < configuredNumberOfSolenoids; ++i)
 	{
 		disableSolenoid(i);
 	}
 }
 
+void setSolenoid(uint8_ft solenoidIndex, uint8_ft state)
+{
+	HAL_GPIO_WritePin(solenoidArray[solenoidIndex].port, solenoidArray[solenoidIndex].pin, state ? GPIO_PIN_SET : GPIO_PIN_RESET);
+}

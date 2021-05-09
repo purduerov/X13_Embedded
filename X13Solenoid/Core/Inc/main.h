@@ -29,12 +29,11 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f0xx_hal.h"
-#include "solenoid.h"
-#include "led.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "solenoid.h"
+#include "led.h"
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
@@ -56,17 +55,6 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
-
-void LedInit();
-void LedInitFlash();
-
-SolenoidErrorCode SolenoidInit();
-
-HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hcan);
-void CAN_ConfigureCANTxOverflowMessage();
-
-void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan);
-void CAN_ErrorCallback(CAN_HandleTypeDef *hcan);
 
 /* USER CODE END EFP */
 

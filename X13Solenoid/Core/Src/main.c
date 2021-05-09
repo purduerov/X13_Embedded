@@ -19,10 +19,11 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "solenoid.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "solenoid.h"
+#include "common.h"
 
 /* USER CODE END Includes */
 
@@ -33,7 +34,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define NUM_SOLENOIDS 6
+#define SOLENOID_STATE_INDEX 7U
 
 #define SOLENOID_BOARD_CAN_STANDARD_ID 0x204  //  11 bits
 #define SOLENOID_BOARD_CAN_EXTENDED_ID 0x00000  //  18 bits
@@ -54,20 +55,19 @@
 
 /* Private variables ---------------------------------------------------------*/
 CAN_HandleTypeDef hcan;
+
+/* USER CODE BEGIN PV */
 CAN_TxHeaderTypeDef canTxOverflowMessage;
 uint8_t CAN_EMPTY_DATA[8] = {};
 
 //  Establish Pins used for solenoids
-int solenoidIndices[NUM_SOLENOIDS] = {0, 1, 2, 3, 4, 5};
-GPIO_TypeDef* gpioPorts[NUM_SOLENOIDS] = {GPIOA, GPIOA, GPIOA, GPIOB, GPIOB, GPIOB};
-uint16_t gpioPins[NUM_SOLENOIDS] = {GPIO_PIN_7, GPIO_PIN_6, GPIO_PIN_5, GPIO_PIN_6, GPIO_PIN_4, GPIO_PIN_3};
+uint8_ft solenoidIndices[NUM_SOLENOIDS] = {0, 1, 2, 3, 4, 5};
+GPIO_TypeDef *gpioPorts[NUM_SOLENOIDS] = {GPIOA, GPIOA, GPIOA, GPIOA, GPIOA, GPIOA};
+uint16_t gpioPins[NUM_SOLENOIDS] = {GPIO_PIN_1, GPIO_PIN_2, GPIO_PIN_3, GPIO_PIN_4, GPIO_PIN_5, GPIO_PIN_6};
 
 //  Establish Pin for LEDs
-GPIO_TypeDef* ledGpioPort = GPIOA;
+GPIO_TypeDef *ledGpioPort = GPIOA;
 uint16_t ledGpioPin = GPIO_PIN_15;
-
-/* USER CODE BEGIN PV */
-
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,7 +75,16 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_CAN_Init(void);
 /* USER CODE BEGIN PFP */
+HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hcan);
 
+static void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan);
+#if 0
+static void CAN_ConfigureCANTxOverflowMessage(void);
+static void CAN_ErrorCallback(CAN_HandleTypeDef *hcan);
+static void LedInitFlash(void);
+#endif
+static void LedInit(void);
+static SolenoidErrorCode SolenoidInit(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -113,6 +122,10 @@ int main(void)
   MX_GPIO_Init();
   MX_CAN_Init();
   /* USER CODE BEGIN 2 */
+  LedInit();
+  SolenoidInit();
+
+  HAL_CAN_Receive_IT(&hcan, CAN_FIFO0);
 
   /* USER CODE END 2 */
 
@@ -166,57 +179,103 @@ void SystemClock_Config(void)
   * @param None
   * @retval None
   */
-
 static void MX_CAN_Init(void)
 {
-	//  Note:
-	// 	HAL_CAN_MspInit() defined in Core/Src/stm32f0xx_hal_msp.c
-	//  Enables GPIO Pins PA11 and PA12 for CAN RX and TX, respectively
-	// 	Enables CAN Peripheral CLK
-	//  Enables CAN Interrupt through NVIC
 
-	//  Generated Code
-	hcan.Instance = CAN;
-	hcan.Init.Prescaler = 4;
-	hcan.Init.Mode = CAN_MODE_NORMAL;
-	hcan.Init.SyncJumpWidth = CAN_SJW_4TQ;
-	hcan.Init.TimeSeg1 = CAN_BS1_11TQ;
-	hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
-	hcan.Init.TimeTriggeredMode = DISABLE;
-	hcan.Init.AutoBusOff = DISABLE;
-	hcan.Init.AutoWakeUp = ENABLE;
-	hcan.Init.AutoRetransmission = DISABLE;
-	hcan.Init.ReceiveFifoLocked = DISABLE;
-	hcan.Init.TransmitFifoPriority = DISABLE;
-	if (HAL_CAN_Init(&hcan) != HAL_OK)
-	{
-		Error_Handler();
-	}
+  /* USER CODE BEGIN CAN_Init 0 */
 
-	if (CAN_ConfigureSolenoidBoardReceiveFilter(&hcan) != HAL_OK)
-	{
-		Error_Handler();
-	}
+  /* USER CODE END CAN_Init 0 */
 
-	//  Enable CAN RX FIFO #0 Pending Interrupt
-	if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_ReceiveMessageCallback);
+  /* USER CODE BEGIN CAN_Init 1 */
 
-	//  Enable CAN RX FIFO #0 Overflow Interrupt
-	/*
-	CAN_ConfigureCANTxOverflowMessage();
-	if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_OVERRUN) != HAL_OK)
-	{
-		Error_Handler();
-	}
-	HAL_CAN_RegisterCallback(&hcan, HAL_CAN_ERROR_CB_ID, CAN_ErrorCallback);
-	*/
+  /* USER CODE END CAN_Init 1 */
+  hcan.Instance = CAN;
+  hcan.Init.Prescaler = 16;
+  hcan.Init.Mode = CAN_MODE_NORMAL;
+  hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan.Init.TimeSeg1 = CAN_BS1_1TQ;
+  hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
+  hcan.Init.TimeTriggeredMode = DISABLE;
+  hcan.Init.AutoBusOff = DISABLE;
+  hcan.Init.AutoWakeUp = DISABLE;
+  hcan.Init.AutoRetransmission = DISABLE;
+  hcan.Init.ReceiveFifoLocked = DISABLE;
+  hcan.Init.TransmitFifoPriority = DISABLE;
+  if (HAL_CAN_Init(&hcan) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN CAN_Init 2 */
+  if (CAN_ConfigureSolenoidBoardReceiveFilter(&hcan) != HAL_OK)
+  	{
+  		Error_Handler();
+  	}
+
+  	//  Enable CAN RX FIFO #0 Pending Interrupt
+  	if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+  	{
+  		Error_Handler();
+  	}
+  	HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_ReceiveMessageCallback);
+
+  	//  Enable CAN RX FIFO #0 Overflow Interrupt
+  	/*
+  	CAN_ConfigureCANTxOverflowMessage();
+  	if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_OVERRUN) != HAL_OK)
+  	{
+  		Error_Handler();
+  	}
+  	HAL_CAN_RegisterCallback(&hcan, HAL_CAN_ERROR_CB_ID, CAN_ErrorCallback);
+  	*/
+  /* USER CODE END CAN_Init 2 */
 
 }
 
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_15, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0|GPIO_PIN_1, GPIO_PIN_RESET);
+
+  /*Configure GPIO pins : PA1 PA2 PA3 PA4
+                           PA5 PA6 PA15 */
+  GPIO_InitStruct.Pin = GPIO_PIN_1|GPIO_PIN_2|GPIO_PIN_3|GPIO_PIN_4
+                          |GPIO_PIN_5|GPIO_PIN_6|GPIO_PIN_15;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB0 PB1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PB3 PB4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+}
+
+/* USER CODE BEGIN 4 */
 HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hcan)
 {
 	//  Configure CAN RX Filter
@@ -245,6 +304,7 @@ HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hca
 	//  of specific CAN ID to be filter through into CAN RX FIFO
 	solenoidBoardFilter.FilterMaskIdHigh = (0x7FF << 5);  //  Only Match STDID
 	solenoidBoardFilter.FilterMaskIdLow = (0x03 << 1);  //  Only Match IDE and RTR bits
+	#warning "Magic numbers above";
 
 	//  Enable Solenoid Board Filter
 	solenoidBoardFilter.FilterActivation = CAN_FILTER_ENABLE;
@@ -253,7 +313,8 @@ HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hca
 	return HAL_CAN_ConfigFilter(hcan, &solenoidBoardFilter);
 }
 
-void CAN_ConfigureCANTxOverflowMessage()
+#if 0
+static void CAN_ConfigureCANTxOverflowMessage(void)
 {
 	//  Configure CAN RX FIFO #0 Overflow CAN TX Message ahead of time
 	canTxOverflowMessage.StdId = SOLENOID_BOARD_CAN_FIFO_OVERFLOW_STDID;
@@ -263,31 +324,29 @@ void CAN_ConfigureCANTxOverflowMessage()
 	canTxOverflowMessage.DLC = SOLENOID_BOARD_CAN_FIFO_OVERFLOW_DLC;
 	canTxOverflowMessage.TransmitGlobalTime = DISABLE;
 }
+#endif
 
-void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan)
+static void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan)
 {
 	CAN_RxHeaderTypeDef canPacketHeader;
 	uint8_t canPacketData[8];
 
 	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &canPacketHeader, canPacketData);
 
-	uint8_t solenoidData = canPacketData[7];
+	uint8_t solenoidData = canPacketData[SOLENOID_STATE_INDEX];
 
-	disableSolenoids();
-	for (int solenoidIndex = 0; solenoidIndex < NUM_SOLENOIDS; solenoidIndex++)
+	for (uint8_ft solenoidIndex = 0; solenoidIndex < NUM_SOLENOIDS; ++solenoidIndex)
 	{
-		//  Enable Solenoid
-		if ((solenoidData & (1 << solenoidIndex)) != 0)
-		{
-			enableSolenoid(solenoidIndex);
-		}
+		setSolenoid(solenoidIndex, solenoidData & (1 << solenoidIndex));
 	}
 
 	toggleLed();
+	HAL_CAN_Receive_IT(&hcan, CAN_FIFO0);
 }
 
+#if 0
 //  Only configured for CAN RX FIFO #0 Overflow Errors
-void CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
+static void CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
 {
 	uint32_t txMailboxNumber;
 
@@ -298,23 +357,11 @@ void CAN_ErrorCallback(CAN_HandleTypeDef *hcan)
 		HAL_CAN_AddTxMessage(hcan, &canTxOverflowMessage, CAN_EMPTY_DATA, &txMailboxNumber);
 	}
 }
+#endif
 
-/**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_GPIO_Init(void)
-{
-  /* GPIO Ports Clock Enable */
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  __HAL_RCC_GPIOB_CLK_ENABLE();
 
-  LedInit();
-  SolenoidInit();
-}
 
-void LedInit()
+static void LedInit(void)
 {
 	GPIO_InitTypeDef gpioInit;
 	gpioInit.Mode = GPIO_MODE_OUTPUT_PP;
@@ -324,14 +371,16 @@ void LedInit()
 	configureLed(ledGpioPort, ledGpioPin, &gpioInit);
 }
 
-void LedInitFlash()
+#if 0
+static void LedInitFlash(void)
 {
 	initializeLedTimer(TIM3);
 	initializeLedFlashFrequency(TIM_FREQ_1HZ);
 	flashLed();
 }
+#endif
 
-SolenoidErrorCode SolenoidInit()
+static SolenoidErrorCode SolenoidInit(void)
 {
 	SolenoidErrorCode errorCode;
 
@@ -342,19 +391,13 @@ SolenoidErrorCode SolenoidInit()
 	gpioInit.Speed = GPIO_SPEED_FREQ_LOW;
 
 	//  Verify and configure number of solenoids
-	errorCode = verifyNumberOfSolenoids(NUM_SOLENOIDS);
-	if (errorCode != SOLENOID_SUCCESS)
-	{
-		return errorCode;
-	}
+	compile_assert(verifyNumberOfSolenoids(NUM_SOLENOIDS) == SOLENOID_SUCCESS);
 	configureNumberOfSolenoids(NUM_SOLENOIDS);
 
 	//  Verify solenoids indices
-	for (int i = 0; i < NUM_SOLENOIDS; i++)
-	{
+	for (uint8_ft i = 0; i < NUM_SOLENOIDS; ++i) {
 		errorCode = verifySolenoidIndex(solenoidIndices[i]);
-		if (errorCode != SOLENOID_SUCCESS)
-		{
+		if (errorCode != SOLENOID_SUCCESS) {
 			return errorCode;
 		}
 	}
@@ -366,7 +409,6 @@ SolenoidErrorCode SolenoidInit()
 	return SOLENOID_SUCCESS;
 }
 
-/* USER CODE BEGIN 4 */
 
 /* USER CODE END 4 */
 

@@ -2,13 +2,14 @@
  * solenoid.h
  *
  *  Created on: Nov 7, 2020
- *      Author: Conne
+ *      Author: Conner
  */
 
 #ifndef INC_SOLENOID_H_
 #define INC_SOLENOID_H_
 
 #include "stm32f0xx_hal.h"
+#include "common.h"
 
 //  Solenoid Error Codes
 typedef enum SolenoidErrorCodeEnum
@@ -26,20 +27,25 @@ typedef struct SolenoidStruct
 	uint16_t pin;
 } Solenoid;
 
+#define NUM_SOLENOIDS 6U
+
+#define verifyNumberOfSolenoids(numSolenoids) ((numSolenoids > NUM_SOLENOIDS) ? SOLENOID_INVALID_NUMBER_OF_SOLENOIDS : SOLENOID_SUCCESS)
+
+
 //  Function Declarations
-SolenoidErrorCode verifySolenoidIndex(int solenoidIndex);
-SolenoidErrorCode verifyNumberOfSolenoids(int numSolenoids);
-void configureNumberOfSolenoids(int numSolenoids);
+SolenoidErrorCode verifySolenoidIndex(uint8_ft solenoidIndex);
+void configureNumberOfSolenoids(uint8_ft numSolenoids);
 
-SolenoidErrorCode addSolenoid(int solenoidIndex, GPIO_TypeDef* gpioPort, uint16_t gpioPin);
-SolenoidErrorCode addSolenoids(int numberOfSolenoids, int* solenoidNumber, GPIO_TypeDef** gpioPorts, uint16_t* gpioPins);
-void configureSolenoid(int solenoidIndex, GPIO_InitTypeDef* gpioInit);
-void configureSolenoids(GPIO_InitTypeDef* gpioInit);
+SolenoidErrorCode addSolenoid(uint8_ft solenoidIndex, GPIO_TypeDef *gpioPort, uint16_t gpioPin);
+SolenoidErrorCode addSolenoids(uint8_ft numberOfSolenoids, uint8_ft restrict const *solenoidIndices, GPIO_TypeDef restrict * const *gpioPorts, uint16_t restrict const *gpioPins);
+void configureSolenoid(uint8_ft solenoidIndex, GPIO_InitTypeDef *gpioInit);
+void configureSolenoids(GPIO_InitTypeDef *gpioInit);
 
-void enableSolenoid(int solenoidIndex);
-void enableSolenoids();
-void disableSolenoid(int solenoidIndex);
-void disableSolenoids();
+void enableSolenoid(uint8_ft solenoidIndex);
+void enableSolenoids(void);
+void disableSolenoid(uint8_ft solenoidIndex);
+void disableSolenoids(void);
+void setSolenoid(uint8_ft solenoidIndex, uint8_ft state);
 
 
 #endif /* INC_SOLENOID_H_ */

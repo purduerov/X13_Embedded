@@ -143,23 +143,6 @@ void HAL_CAN_MspDeInit(CAN_HandleTypeDef* hcan)
 
 }
 
-void HAL_TIM_Base_MspInit(TIM_HandleTypeDef *htim)
-{
-	if (htim->Instance == TIM1)
-		__HAL_RCC_TIM1_CLK_ENABLE();
-	else if (htim->Instance == TIM2)
-		__HAL_RCC_TIM2_CLK_ENABLE();
-	if (htim->Instance == TIM3)
-		__HAL_RCC_TIM3_CLK_ENABLE();
-	else if (htim->Instance == TIM14)
-		__HAL_RCC_TIM14_CLK_ENABLE();
-	if (htim->Instance == TIM16)
-		__HAL_RCC_TIM16_CLK_ENABLE();
-	else if (htim->Instance == TIM17)
-		__HAL_RCC_TIM17_CLK_ENABLE();
-
-}
-
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */

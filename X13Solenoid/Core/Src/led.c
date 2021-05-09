@@ -2,7 +2,7 @@
  * led.c
  *
  *  Created on: Nov 14, 2020
- *      Author: Conne
+ *      Author: Conner
  */
 
 #include "led.h"
@@ -19,7 +19,7 @@ TIM_HandleTypeDef timerConfiguration;
 #define ARR_16HZ (50 - 1)
 #define ARR_32HZ (25 - 1)
 
-void configureLed(GPIO_TypeDef* gpioPort, uint16_t gpioPin, GPIO_InitTypeDef* gpioInit)
+void configureLed(GPIO_TypeDef *gpioPort, uint16_t gpioPin, GPIO_InitTypeDef *gpioInit)
 {
 	//  Configure Led GPIO Port and Pin Number
 	led.port = gpioPort;
@@ -33,7 +33,7 @@ void configureLed(GPIO_TypeDef* gpioPort, uint16_t gpioPin, GPIO_InitTypeDef* gp
 	HAL_GPIO_Init(led.port, gpioInit);
 }
 
-void initializeLedTimer(TIM_TypeDef* timerModule)
+void initializeLedTimer(TIM_TypeDef *timerModule)
 {
 	timerConfiguration.Instance = timerModule;
 	//  CK_CNT Frequency is 1.6kHz
@@ -51,7 +51,7 @@ void initializeLedTimer(TIM_TypeDef* timerModule)
 	HAL_TIM_RegisterCallback(&timerConfiguration, HAL_TIM_PERIOD_ELAPSED_CB_ID, timerUpdateEventCallback);
 }
 
-void timerUpdateEventCallback(TIM_HandleTypeDef* htim)
+void timerUpdateEventCallback(TIM_HandleTypeDef *htim)
 {
 	toggleLed();
 }
@@ -86,21 +86,25 @@ void changeLedFlashFrequency(TimerFrequency timerFrequency)
 
 uint32_t getAutoReloadRegisterValue(TimerFrequency timerFrequency)
 {
-	uint32_t newArr;
-
 	switch (timerFrequency)
 	{
-		case TIM_FREQ_HALFHZ: newArr = ARR_HALFHZ; break;
-		case TIM_FREQ_1HZ: newArr = ARR_1HZ; break;
-		case TIM_FREQ_2HZ: newArr = ARR_2HZ; break;
-		case TIM_FREQ_4HZ: newArr = ARR_4HZ; break;
-		case TIM_FREQ_8HZ: newArr = ARR_8HZ; break;
-		case TIM_FREQ_16HZ: newArr = ARR_16HZ; break;
-		case TIM_FREQ_32HZ: newArr = ARR_32HZ; break;
-		default: newArr = ARR_1HZ;
+		case TIM_FREQ_HALFHZ:
+			return ARR_HALFHZ;
+		case TIM_FREQ_1HZ:
+			return ARR_1HZ;
+		case TIM_FREQ_2HZ:
+			return ARR_2HZ;
+		case TIM_FREQ_4HZ:
+			return ARR_4HZ;
+		case TIM_FREQ_8HZ:
+			return ARR_8HZ;
+		case TIM_FREQ_16HZ:
+			return ARR_16HZ;
+		case TIM_FREQ_32HZ:
+			return ARR_32HZ;
+		default:
+			return ARR_1HZ;
 	}
-
-	return newArr;
 }
 
 void setLedOn()

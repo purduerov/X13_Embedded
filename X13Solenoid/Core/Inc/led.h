@@ -30,15 +30,15 @@ typedef enum LEDState
 
 typedef struct LEDStruct
 {
-	GPIO_TypeDef* port;
+	GPIO_TypeDef *port;
 	uint16_t pin;
 	LedState state;
 } Led;
 
-void configureLed(GPIO_TypeDef* gpioPort, uint16_t gpioPin, GPIO_InitTypeDef* gpioInit);
+void configureLed(GPIO_TypeDef *gpioPort, uint16_t gpioPin, GPIO_InitTypeDef *gpioInit);
 
-void initializeLedTimer(TIM_TypeDef* timerModule);
-void timerUpdateEventCallback(TIM_HandleTypeDef* htim);
+void initializeLedTimer(TIM_TypeDef *timerModule);
+void timerUpdateEventCallback(TIM_HandleTypeDef *htim);
 void initializeLedFlashFrequency(TimerFrequency timerFrequency);
 uint32_t getAutoReloadRegisterValue(TimerFrequency timerFrequency);
 
