@@ -24,12 +24,21 @@ typedef enum
 	QUEUE_EMPTY = 4
 } QueueErrorCode;
 
+#if 1
+//#ifdef NDEBUG
+typedef int queue_handle_t;
+#else
+typedef struct {
+	int handle;
+} queue_handle_t;
+#endif
+
 void InitializeQueueModule();
-QueueErrorCode CreateQueue(void* dataArray, int elementSizeBytes, int numArrayElements, int* queueHandle);
-QueueErrorCode AddToQueue(int queueHandle, void* data);
-QueueErrorCode RemoveFromQueue(int queueHandle, void** data);
-void FreeQueue(int queueHandle);
-int isQueueEmpty(int queueHandle);
-int getQueueSize(int queueHandle);
+QueueErrorCode CreateQueue(void *dataArray, int elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle);
+QueueErrorCode AddToQueue(queue_handle_t queueHandle, void const *data);
+QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void **data);
+void FreeQueue(queue_handle_t queueHandle);
+int isQueueEmpty(queue_handle_t queueHandle);
+int getQueueSize(queue_handle_t queueHandle);
 
 #endif /* INC_QUEUE_API_H_ */

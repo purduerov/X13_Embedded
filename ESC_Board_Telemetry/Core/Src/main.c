@@ -44,6 +44,7 @@
 /* USER CODE BEGIN Includes */
 #include "canFilterBankConfig.h"
 #include "queue_api.h"
+#include "stdint.h"
 
 /* USER CODE END Includes */
 
@@ -60,7 +61,20 @@ typedef struct
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ASSERT_CONCAT_(a, b) a##b
+#define ASSERT_CONCAT(a, b) ASSERT_CONCAT_(a, b)
+#define compile_assert(e) enum { ASSERT_CONCAT(assert_line_, __LINE__) = 1/(!!(e)) }
+// From: http://www.pixelbeat.org/programming/gcc/static_assert.html
+
+#define N_ELEMENTS(ARR) (sizeof(ARR) / sizeof(ARR[0]))
+
+#define MASK_OF(N_BITS) ((N_BITS << 1) - 1)
+
 #define NUM_ADC_INIT_WAIT_MS 500
+
+
+#define CAN_ST_ID_REG_N_BITS 11
+#define CAN_ST_ID_REG_MAX MASK_OF(CAN_ST_ID_REG_N_BITS)
 
 /*
  * The resistor voltage divisions for the CAN ID have a pull up on the ESC controller board
@@ -70,7 +84,7 @@ typedef struct
  * or ID 201, 0.4 to 0.6 are 0.5 or ID 202, and 0.6 to 0.8 are 0.7 or ID 203.
  */
 
-#define ADC_MAX_VALUE (4095)
+#define ADC_MAX_VALUE (4095U)
 #define CAN_ID_201_LOW_THRESHOLD (ADC_MAX_VALUE / 5)
 #define CAN_ID_202_LOW_THRESHOLD (ADC_MAX_VALUE / 5 * 2)
 #define CAN_ID_203_LOW_THRESHOLD (ADC_MAX_VALUE / 5 * 3)
@@ -88,9 +102,53 @@ typedef struct
 
 #define NUM_CAN_TX_QUEUE_MESSAGES 5
 
-#define TELEMETRY_PACKET_SIZE_REG 9
+#define TELEMETRY_PACKET_SIZE_REG 9U
 #define TELEMETRY_PACKET_SIZE_CRC (TELEMETRY_PACKET_SIZE_REG + 1)
-#define TELEMETRY_PACKET_ARRIVAL_MS 10
+
+#define SEND_ID_INC 0x100U
+#define SEND_ID (canId + SEND_ID_INC)
+
+#define voltToKISSFormat(volt) (volt * 100U)
+
+#define ROV_VOLT_MIN 10U
+#define ROV_VOLT_MIN_KISS (voltToKISSFormat(ROV_VOLT_MIN))
+#define ROV_VOLT_MAX_KISS 4060U
+#define ROV_VOLT_DIVISOR ((ROV_VOLT_MAX_KISS - ROV_VOLT_MIN_KISS) / UINT8_MAX)
+
+// Assert that the divisor is a whole number.
+compile_assert((float)ROV_VOLT_DIVISOR == ((ROV_VOLT_MAX_KISS - ROV_VOLT_MIN_KISS) / (float)UINT8_MAX));
+
+typedef enum {
+	KISS_TEMP = 0,
+	KISS_VOLT_HIGH,
+	KISS_VOLT_LOW,
+	KISS_CURRENT_HIGH,
+	KISS_CURRENT_LOW,
+	KISS_ENERGY_HIGH,
+	KISS_ENERGY_LOW,
+	KISS_ERPM_HIGH,
+	KISS_ERPM_LOW,
+	KISS_CRC,
+	KISS_NO_CRC_COUNT = KISS_CRC,
+	KISS_CRC_COUNT
+} kiss_tlm_index_t;
+
+typedef enum {
+	ROV_TEMP = 0,
+	ROV_VOLT,
+	ROV_CURRENT_HIGH,
+	ROV_CURRENT_LOW,
+	ROV_ENERGY_HIGH,
+	ROV_ENERGY_LOW,
+	ROV_ERPM_HIGH,
+	ROV_ERPM_LOW,
+	ROV_TLM_COUNT
+} rov_tlm_index_t;
+
+//#define USE_OLD 0
+#ifndef USE_OLD
+	#define USE_OLD 1
+#endif
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -110,9 +168,10 @@ TIM_HandleTypeDef htim16;
 UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN PV */
+uint32_t canId = 0x206;
 uint8_t adcConfigured = 0;
 
-int canTxQueueHandle;
+queue_handle_t canTxQueueHandle;
 CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
 CanTxData canTxPrivateMessageToSend;
 
@@ -136,10 +195,14 @@ static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
 
 void EnablePWMOutput(TIM_HandleTypeDef *_htim);
-int byte_to_pwm(int byte);  //  Imported from X12 ESC Code
+#if USE_OLD
+	static uint32_t byte_to_pwm(uint32_t byte);  //  Imported from X12 ESC Code
+#else
+	static uint32_t byte_to_pwm(uint8_t byte);
+#endif
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
-void SendCANMessage(CanTxData* canTxDataToSend);
+static void CAN_ConfigureFilterForThrusterOperation(void);
+void SendCANMessage(CanTxData *canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
@@ -149,6 +212,8 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 
+static uint8_t packROVVolt(uint16_t kissVolt);
+static void sendTelemetryData(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -193,7 +258,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
   InitializeQueueModule();
-  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
+  CreateQueue((void*)canTxData, sizeof(canTxData[0]), N_ELEMENTS(canTxData), &canTxQueueHandle);
 
   //  Enable PWM Outputs to ESCs
   EnablePWMOutput(&htim3);
@@ -213,8 +278,7 @@ int main(void)
 
 		if(sendTelemetry) {
 			if(telemetryBytesRecieved >= TELEMETRY_PACKET_SIZE_REG) {
-				// TODO: INSERT CAN SEND HERE.
-
+				sendTelemetryData();
 			}
 			telemetryBytesRecieved = 0;
 			sendTelemetry = 0;
@@ -370,7 +434,7 @@ static void MX_CAN_Init(void)
   //  Enable FIFO0 Message Pending Interrupt
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
-  CAN_ConfigureFilterForThrusterOperation(0x201);
+  CAN_ConfigureFilterForThrusterOperation();
 
   //  Enable TX Request Complete Interrupt
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
@@ -585,7 +649,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
+static void CAN_ConfigureFilterForThrusterOperation()
 {
 	CAN_FilterTypeDef thrusterOperationFilter;
 	CAN_FilterBank canFilterBank;
@@ -607,7 +671,7 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 	canFilterId.ide = CAN_IDE_CLEAR;
 	canFilterId.rtr = CAN_RTR_CLEAR;
 
-	canFilterMask.stdId = 0x7FF;
+	canFilterMask.stdId = CAN_ST_ID_REG_MAX;
 	canFilterMask.extId = 0;
 	canFilterMask.ide = CAN_IDE_CLEAR;
 	canFilterMask.rtr = CAN_RTR_CLEAR;
@@ -622,13 +686,19 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	int data[4];
+	#if USE_OLD
+	uint32_t data[4];
 
 	//  Get Data Bytes received from RX FIFO
-	data[0] = (int)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
-	data[1] = (int)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
-	data[2] = (int)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
-	data[3] = (int)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
+	data[0] = (uint32_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
+	data[1] = (uint32_t)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
+	data[2] = (uint32_t)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
+	data[3] = (uint32_t)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
+	#else
+
+	uint8_t *data = &(_hcan->Instance->sFIFOMailBox[0].RDHR);
+
+	#endif
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
@@ -646,7 +716,6 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef* hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(hadc);
-	uint32_t canId;
 
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
@@ -677,7 +746,7 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef* hadc)
 	HAL_ADC_Stop_IT(hadc);
 
 	// Configure CAN Filter for Thrusters and
-	CAN_ConfigureFilterForThrusterOperation(canId);
+	CAN_ConfigureFilterForThrusterOperation();
 	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
 
 	// Restart TIM14 to flash PA15 LED
@@ -705,7 +774,7 @@ void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 
 	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
 	{
-		RemoveFromQueue(canTxQueueHandle, (void**)&canTxDataToSend);
+		RemoveFromQueue(canTxQueueHandle, (void **)&canTxDataToSend);
 		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
 	}
 }
@@ -740,11 +809,19 @@ void EnablePWMOutput(TIM_HandleTypeDef *_htim)
 }
 
 //  Imported from X12 ESC Code
-int byte_to_pwm(int byte)
+#if USE_OLD
+uint32_t byte_to_pwm(uint32_t byte)
+#else
+uint32_t byte_to_pwm(uint8_t byte)
+#endif
 {
 	float exact;
-	exact = byte * (40.0/255.0) + 55.0;
-	return (exact + 0.5); //rounds up the integer by adding 0.5
+	#if USE_OLD
+	exact = byte * (40.0F/255.0F) + 55.0F;
+	#else
+	exact = (uint32_t)byte * (40.0F/255.0F) + 55.0F;
+	#endif
+	return (uint32_t) (exact + 0.5F); //rounds up the integer by adding 0.5
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
@@ -767,16 +844,48 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
 }
 
+static inline uint8_t packROVVolt(uint16_t kissVolt) {
+	if(kissVolt <= ROV_VOLT_MIN_KISS) {
+		return 0;
+	} else if(kissVolt >= ROV_VOLT_MAX_KISS) {
+		return UINT8_MAX;
+	} else {
+		return (uint8_t)((kissVolt - voltToKISSFormat(ROV_VOLT_MIN)) / ROV_VOLT_DIVISOR);
+	}
+	/*
+	 * Does the conversion of (V - 1000) / 12
+	 * The max (40.6 V / KISS 4060 maps to 255
+	 * The min (10 V / KISS 1000 maps to 0
+	 * Voltages outside that range are clipped
+	 */
+}
+
+void sendTelemetryData(void) {
+	CanTxData canSendPacket;
+	canSendPacket.data[ROV_TEMP] = telemetryBuffer[KISS_TEMP];
+	 uint16_t voltage = (((uint16_t)telemetryBuffer[KISS_VOLT_HIGH]) << 8U) + telemetryBuffer[KISS_VOLT_LOW];
+	canSendPacket.data[ROV_VOLT] = packROVVolt(voltage);
+	canSendPacket.data[ROV_CURRENT_HIGH] = telemetryBuffer[KISS_CURRENT_HIGH];
+	canSendPacket.data[ROV_CURRENT_LOW] = telemetryBuffer[KISS_CURRENT_LOW];
+	canSendPacket.data[ROV_ENERGY_HIGH] = telemetryBuffer[KISS_ENERGY_HIGH];
+	canSendPacket.data[ROV_ENERGY_LOW] = telemetryBuffer[KISS_ENERGY_LOW];
+	canSendPacket.data[ROV_ERPM_HIGH] = telemetryBuffer[KISS_ERPM_HIGH];
+	canSendPacket.data[ROV_ERPM_LOW] = telemetryBuffer[KISS_ERPM_LOW];
+	canSendPacket.canTxHeader.StdId = SEND_ID;
+	canSendPacket.canTxHeader.DLC = ROV_TLM_COUNT;
+	SendCANMessage(&canSendPacket);
+}
+
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 {
 	// Set the flag for main to send telemetry data
 	sendTelemetry = 1;
 
 	// Stop the timer.
-	HAL_TIM_Base_Stop_IT(&htim16);
+	HAL_TIM_Base_Stop_IT(htim);
 	TIM16->CNT = 0;
 
-	// Prep for the next receive.
+	// Prepare for the next receive.
 	// HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
 }
 /* USER CODE END 4 */

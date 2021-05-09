@@ -6,13 +6,21 @@
  */
 
 #include "queue.h"
+#include <string.h>
 
 #define NUM_QUEUES 5
 #define NUM_QUEUE_NODES 50
 
+#if 1
+//#ifdef NDEBUG
+#define I(handle) handle
+#else
+#define I(handle) handle.handle
+#endif
+
 Queue hierarchyQueue;
 QueueNode queueHandleNodes[NUM_QUEUES];
-int queueHandleNumbers[NUM_QUEUES];
+queue_handle_t queueHandleNumbers[NUM_QUEUES];
 
 Queue freeNodesQueue;
 QueueNode queueNodes[NUM_QUEUE_NODES];
@@ -26,7 +34,7 @@ void InitializeQueueModule()
 	InitializeQueue(&hierarchyQueue, NULL, 0);
 	for (int i = 0; i < NUM_QUEUES; i++)
 	{
-		queueHandleNumbers[i] = i;
+		queueHandleNumbers[i] = (queue_handle_t)i;
 		queueHandleNodes[i].data = (void*)&(queueHandleNumbers[i]);
 		AddNodeToQueue(&hierarchyQueue, &(queueHandleNodes[i]));
 	}
@@ -39,9 +47,9 @@ void InitializeQueueModule()
 	}
 }
 
-QueueErrorCode CreateQueue(void* dataArray, int elementSizeBytes, int numArrayElements, int* queueHandle)
+QueueErrorCode CreateQueue(void *dataArray, int elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle)
 {
-	QueueNode* queueHandleNode;
+	QueueNode *queueHandleNode;
 
 	if (numArrayElements > freeNodesQueue.size)
 	{
@@ -53,7 +61,7 @@ QueueErrorCode CreateQueue(void* dataArray, int elementSizeBytes, int numArrayEl
 	{
 		return QUEUE_NO_AVAILABLE_QUEUES;
 	}
-	*queueHandle = *((int*)(queueHandleNode->data));
+	*queueHandle = *((queue_handle_t*)(queueHandleNode->data));
 
 	InitializeQueue(&(queues[*queueHandle]), dataArray, elementSizeBytes);
 	InitializeQueue(&(freeQueues[*queueHandle]), dataArray, elementSizeBytes);
@@ -62,9 +70,9 @@ QueueErrorCode CreateQueue(void* dataArray, int elementSizeBytes, int numArrayEl
 	return QUEUE_SUCCESS;
 }
 
-QueueErrorCode AddToQueue(int queueHandle, void* data)
+QueueErrorCode AddToQueue(queue_handle_t queueHandle, void const *data)
 {
-	QueueNode* queueNode;
+	QueueNode *queueNode;
 
 	//  Remove node from corresponding free node queue
 	queueNode = RemoveNodeFromQueue(&(freeQueues[queueHandle]));
@@ -74,15 +82,15 @@ QueueErrorCode AddToQueue(int queueHandle, void* data)
 	}
 
 	//  Copy Data and node to corresponding queue
-	byteCopy((uint8_t*)data, (uint8_t*)queueNode->data, queues[queueHandle].elementSizeBytes);
+	memcpy(queueNode->data, data, queues[queueHandle].elementSizeBytes);
 	AddNodeToQueue(&(queues[queueHandle]), queueNode);
 
 	return QUEUE_SUCCESS;
 }
 
-QueueErrorCode RemoveFromQueue(int queueHandle, void** data)
+QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void **data)
 {
-	QueueNode* queueNode;
+	QueueNode *queueNode;
 
 	queueNode = RemoveNodeFromQueue(&(queues[queueHandle]));
 	if (queueNode == NULL)
@@ -96,7 +104,7 @@ QueueErrorCode RemoveFromQueue(int queueHandle, void** data)
 	return QUEUE_SUCCESS;
 }
 
-void FreeQueue(int queueHandle)
+void FreeQueue(queue_handle_t queueHandle)
 {
 	DeinitializeQueue(&(queues[queueHandle]));
 	DeinitializeQueue(&(freeQueues[queueHandle]));
@@ -105,17 +113,17 @@ void FreeQueue(int queueHandle)
 	AddNodeToQueue(&hierarchyQueue, &(queueHandleNodes[queueHandle]));
 }
 
-int isQueueEmpty(int queueHandle)
+int isQueueEmpty(queue_handle_t const queueHandle)
 {
 	return (queues[queueHandle].size == 0);
 }
 
-int getQueueSize(int queueHandle)
+int getQueueSize(queue_handle_t const queueHandle)
 {
 	return queues[queueHandle].size;
 }
 
-void InitializeQueue(Queue* queue, void* dataArray, int elementSizeBytes)
+void InitializeQueue(Queue *queue, void *dataArray, int elementSizeBytes)
 {
 	queue->first = NULL;
 	queue->last = NULL;
@@ -124,10 +132,10 @@ void InitializeQueue(Queue* queue, void* dataArray, int elementSizeBytes)
 	queue->elementSizeBytes = elementSizeBytes;
 }
 
-QueueErrorCode FillQueue(Queue* queue, int numArrayElements)
+QueueErrorCode FillQueue(Queue *queue, int numArrayElements)
 {
-	uint8_t* dataElement;
-	QueueNode* queueNode;
+	uint8_t *dataElement;
+	QueueNode *queueNode;
 
 	if (numArrayElements > freeNodesQueue.size)
 	{
@@ -146,9 +154,9 @@ QueueErrorCode FillQueue(Queue* queue, int numArrayElements)
 	return QUEUE_SUCCESS;
 }
 
-void DeinitializeQueue(Queue* queue)
+void DeinitializeQueue(Queue *queue)
 {
-	QueueNode* queueNode;
+	QueueNode *queueNode;
 
 	//  Remove all nodes and place in free node queue
 	while (queue->first != NULL)
@@ -162,10 +170,10 @@ void DeinitializeQueue(Queue* queue)
 	queue->elementSizeBytes = 0;
 }
 
-void AddNodeToQueue(Queue* queue, QueueNode* queueNode)
+void AddNodeToQueue(Queue *queue, QueueNode *queueNode)
 {
 	//  If first node
-	if (queue->last == NULL)
+	if (queue->first == NULL)
 	{
 		queue->first = queueNode;
 		queue->last = queueNode;
@@ -179,9 +187,9 @@ void AddNodeToQueue(Queue* queue, QueueNode* queueNode)
 	queue->size++;
 }
 
-QueueNode* RemoveNodeFromQueue(Queue* queue)
+QueueNode *RemoveNodeFromQueue(Queue *queue)
 {
-	QueueNode* queueNodeToRemove;
+	QueueNode *queueNodeToRemove;
 
 	//  Check if queue is empty
 	if (queue->first == NULL)
@@ -195,12 +203,4 @@ QueueNode* RemoveNodeFromQueue(Queue* queue)
 	queue->size--;
 
 	return queueNodeToRemove;
-}
-
-void byteCopy(uint8_t* source, uint8_t* dest, int numBytes)
-{
-	for (int i = 0; i < numBytes; i++)
-	{
-		dest[i] = source[i];
-	}
 }

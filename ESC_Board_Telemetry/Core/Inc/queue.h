@@ -13,26 +13,24 @@
 
 typedef struct _QueueNode
 {
-	void* data;
-	struct _QueueNode* next;
+	void *data;
+	struct _QueueNode *next;
 } QueueNode;
 
 typedef struct
 {
-	QueueNode* first;
-	QueueNode* last;
+	QueueNode *first;
+	QueueNode *last;
 	int size;
 
-	void* dataArray;
+	void *dataArray;
 	int elementSizeBytes;
 } Queue;
 
-void InitializeQueue(Queue* queue, void* dataArray, int elementSizeBytes);
-QueueErrorCode FillQueue(Queue* queue, int numArrayElements);
-void DeinitializeQueue(Queue* queue);
-void AddNodeToQueue(Queue* queue, QueueNode* queueNode);
-QueueNode* RemoveNodeFromQueue(Queue* queue);
-
-void byteCopy(uint8_t* source, uint8_t* dest, int numBytes);
+void InitializeQueue(Queue *queue, void *dataArray, int elementSizeBytes);
+QueueErrorCode FillQueue(Queue *queue, int numArrayElements);
+void DeinitializeQueue(Queue *queue);
+void AddNodeToQueue(Queue *queue, QueueNode *queueNode);
+QueueNode *RemoveNodeFromQueue(Queue *queue);
 
 #endif /* INC_QUEUE_H_ */
