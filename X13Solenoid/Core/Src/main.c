@@ -125,6 +125,8 @@ int main(void)
   LedInit();
   SolenoidInit();
 
+  HAL_CAN_Start(&hcan);
+
   HAL_CAN_Receive_IT(&hcan, CAN_FIFO0);
 
   /* USER CODE END 2 */
