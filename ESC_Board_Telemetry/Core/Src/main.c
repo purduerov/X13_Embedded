@@ -841,7 +841,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		TIM16->CNT = 0;
 		sendTelemetry = 1;
 	}
-	HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
+	HAL_UART_Receive_IT(&huart, &uartRxBuffer, 1);
 }
 
 static inline uint8_t packROVVolt(uint16_t kissVolt) {
@@ -863,7 +863,7 @@ static inline uint8_t packROVVolt(uint16_t kissVolt) {
 void sendTelemetryData(void) {
 	CanTxData canSendPacket;
 	canSendPacket.data[ROV_TEMP] = telemetryBuffer[KISS_TEMP];
-	 uint16_t voltage = (((uint16_t)telemetryBuffer[KISS_VOLT_HIGH]) << 8U) + telemetryBuffer[KISS_VOLT_LOW];
+	uint16_t voltage = (((uint16_t)telemetryBuffer[KISS_VOLT_HIGH]) << 8U) + telemetryBuffer[KISS_VOLT_LOW];
 	canSendPacket.data[ROV_VOLT] = packROVVolt(voltage);
 	canSendPacket.data[ROV_CURRENT_HIGH] = telemetryBuffer[KISS_CURRENT_HIGH];
 	canSendPacket.data[ROV_CURRENT_LOW] = telemetryBuffer[KISS_CURRENT_LOW];
@@ -873,7 +873,8 @@ void sendTelemetryData(void) {
 	canSendPacket.data[ROV_ERPM_LOW] = telemetryBuffer[KISS_ERPM_LOW];
 	canSendPacket.canTxHeader.StdId = SEND_ID;
 	canSendPacket.canTxHeader.DLC = ROV_TLM_COUNT;
-	SendCANMessage(&canSendPacket);
+	// SendCANMessage(&canSendPacket);
+	#warning "Not sending telemetry back over CAN";
 }
 
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
