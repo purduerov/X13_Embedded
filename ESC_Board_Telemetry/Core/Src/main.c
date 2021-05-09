@@ -102,9 +102,6 @@ typedef struct
 
 #define NUM_CAN_TX_QUEUE_MESSAGES 5
 
-#define TELEMETRY_PACKET_SIZE_REG 9U
-#define TELEMETRY_PACKET_SIZE_CRC (TELEMETRY_PACKET_SIZE_REG + 1)
-
 #define SEND_ID_INC 0x100U
 #define SEND_ID (canId + SEND_ID_INC)
 
@@ -175,7 +172,7 @@ queue_handle_t canTxQueueHandle;
 CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
 CanTxData canTxPrivateMessageToSend;
 
-static uint8_t telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC] = {0};
+static uint8_t telemetryBuffer[KISS_CRC_COUNT] = {0};
 static uint8_t telemetryBytesRecieved;
 static uint8_t uartRxBuffer;
 static volatile uint8_t sendTelemetry;
@@ -211,6 +208,8 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
+
+static void UART_receive(void);
 
 static uint8_t packROVVolt(uint16_t kissVolt);
 static void sendTelemetryData(void);
@@ -275,9 +274,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
+    	// UART_receive();
 		if(sendTelemetry) {
-			if(telemetryBytesRecieved >= TELEMETRY_PACKET_SIZE_REG) {
+			if(telemetryBytesRecieved >= KISS_NO_CRC_COUNT) {
 				sendTelemetryData();
 			}
 			telemetryBytesRecieved = 0;
@@ -617,7 +616,7 @@ static void MX_USART1_UART_Init(void)
   (void)status;
   // HAL_StatusTypeDef status1 = HAL_UART_RegisterCallback(&huart1, , );
 
-  status = HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
+  // status = HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
   (void)status;
   /* USER CODE END USART1_Init 2 */
 
@@ -833,15 +832,15 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		// The Telemetry packet should arrive in the first 10 ms.
 		// After 10 ms, send whatever has been received, which may or may not include a 10th CRC byte.
 		HAL_TIM_Base_Start_IT(&htim16);
-		telemetryBuffer[TELEMETRY_PACKET_SIZE_CRC - 1] = 0;  // Clear the CRC byte in case this packet doesn't have one.
-	} else if(telemetryBytesRecieved == 10) {
+		telemetryBuffer[KISS_CRC] = 0;  // Clear the CRC byte in case this packet doesn't have one.
+	} else if(telemetryBytesRecieved == KISS_CRC_COUNT) {
 		// As an optimization, if we've gotten all 10 bytes, don't bother waiting and set them to be sent.
 		// Stop timer
 		HAL_TIM_Base_Stop_IT(&htim16);
 		TIM16->CNT = 0;
 		sendTelemetry = 1;
 	}
-	HAL_UART_Receive_IT(&huart, &uartRxBuffer, 1);
+	HAL_UART_Receive_IT(huart, &uartRxBuffer, 1);
 }
 
 static inline uint8_t packROVVolt(uint16_t kissVolt) {
@@ -854,8 +853,8 @@ static inline uint8_t packROVVolt(uint16_t kissVolt) {
 	}
 	/*
 	 * Does the conversion of (V - 1000) / 12
-	 * The max (40.6 V / KISS 4060 maps to 255
-	 * The min (10 V / KISS 1000 maps to 0
+	 * The max (40.6 V / KISS 4060) maps to 255
+	 * The min (10 V / KISS 1000) maps to 0
 	 * Voltages outside that range are clipped
 	 */
 }
@@ -874,6 +873,7 @@ void sendTelemetryData(void) {
 	canSendPacket.canTxHeader.StdId = SEND_ID;
 	canSendPacket.canTxHeader.DLC = ROV_TLM_COUNT;
 	// SendCANMessage(&canSendPacket);
+	(void)canSendPacket;
 	#warning "Not sending telemetry back over CAN";
 }
 
@@ -888,6 +888,33 @@ void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 
 	// Prepare for the next receive.
 	// HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
+}
+
+static void UART_receive(void) {
+	uint8_t buffer;
+	HAL_StatusTypeDef status = HAL_UART_Receive(&huart1, &buffer, 1, 10);
+	if(status != HAL_OK) {
+		// HAL_TIM_Base_Stop_IT(&htim16);
+		// TIM16->CNT = 0;
+		telemetryBytesRecieved = 0;
+		return;
+	}
+
+	telemetryBuffer[telemetryBytesRecieved] = buffer;
+	++telemetryBytesRecieved;
+	if(telemetryBytesRecieved == 1) {
+		// start timer. A new packet is sent every 32 ms.
+		// The Telemetry packet should arrive in the first 10 ms.
+		// After 10 ms, send whatever has been received, which may or may not include a 10th CRC byte.
+		// HAL_TIM_Base_Start_IT(&htim16);
+		telemetryBuffer[KISS_CRC] = 0;  // Clear the CRC byte in case this packet doesn't have one.
+	} else if(telemetryBytesRecieved == KISS_CRC_COUNT) {
+		// As an optimization, if we've gotten all 10 bytes, don't bother waiting and set them to be sent.
+		// Stop timer
+		// HAL_TIM_Base_Stop_IT(&htim16);
+		// TIM16->CNT = 0;
+		sendTelemetry = 1;
+	}
 }
 /* USER CODE END 4 */
 
