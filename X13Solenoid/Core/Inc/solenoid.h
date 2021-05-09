@@ -37,7 +37,7 @@ SolenoidErrorCode verifySolenoidIndex(uint8_ft solenoidIndex);
 void configureNumberOfSolenoids(uint8_ft numSolenoids);
 
 SolenoidErrorCode addSolenoid(uint8_ft solenoidIndex, GPIO_TypeDef *gpioPort, uint16_t gpioPin);
-SolenoidErrorCode addSolenoids(uint8_ft numberOfSolenoids, uint8_ft restrict const *solenoidIndices, GPIO_TypeDef restrict * const *gpioPorts, uint16_t restrict const *gpioPins);
+SolenoidErrorCode addSolenoids(uint8_ft numberOfSolenoids, uint8_ft const * restrict solenoidIndices, GPIO_TypeDef * const * restrict gpioPorts, uint16_t const * restrict gpioPins);
 void configureSolenoid(uint8_ft solenoidIndex, GPIO_InitTypeDef *gpioInit);
 void configureSolenoids(GPIO_InitTypeDef *gpioInit);
 

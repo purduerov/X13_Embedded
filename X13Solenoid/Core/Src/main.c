@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include "solenoid.h"
 #include "common.h"
+#include "canFilterBankConfig.h"
 
 /* USER CODE END Includes */
 
@@ -77,7 +78,7 @@ static void MX_CAN_Init(void);
 /* USER CODE BEGIN PFP */
 HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hcan);
 
-static void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan);
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *hcan);
 #if 0
 static void CAN_ConfigureCANTxOverflowMessage(void);
 static void CAN_ErrorCallback(CAN_HandleTypeDef *hcan);
@@ -126,8 +127,6 @@ int main(void)
   SolenoidInit();
 
   HAL_CAN_Start(&hcan);
-
-  HAL_CAN_Receive_IT(&hcan, CAN_FIFO0);
 
   /* USER CODE END 2 */
 
@@ -192,11 +191,11 @@ static void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN;
-  hcan.Init.Prescaler = 16;
+  hcan.Init.Prescaler = 4;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
-  hcan.Init.TimeSeg1 = CAN_BS1_1TQ;
-  hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
+  hcan.Init.TimeSeg1 = CAN_BS1_11TQ;
+  hcan.Init.TimeSeg2 = CAN_BS2_4TQ;
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
   hcan.Init.AutoWakeUp = DISABLE;
@@ -208,17 +207,18 @@ static void MX_CAN_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN_Init 2 */
-  if (CAN_ConfigureSolenoidBoardReceiveFilter(&hcan) != HAL_OK)
-  	{
-  		Error_Handler();
-  	}
-
   	//  Enable CAN RX FIFO #0 Pending Interrupt
   	if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
   	{
   		Error_Handler();
   	}
-  	HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_ReceiveMessageCallback);
+
+  	HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+
+  	if (CAN_ConfigureSolenoidBoardReceiveFilter(&hcan) != HAL_OK)
+	{
+		Error_Handler();
+	}
 
   	//  Enable CAN RX FIFO #0 Overflow Interrupt
   	/*
@@ -278,8 +278,9 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hcan)
+HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef *hcan)
 {
+	#if 0
 	//  Configure CAN RX Filter
 	CAN_FilterTypeDef solenoidBoardFilter;
 	//  Filter Bank #0 assigned to FIFO #0 (two total RX FIFOs)
@@ -311,6 +312,39 @@ HAL_StatusTypeDef CAN_ConfigureSolenoidBoardReceiveFilter(CAN_HandleTypeDef* hca
 	//  Enable Solenoid Board Filter
 	solenoidBoardFilter.FilterActivation = CAN_FILTER_ENABLE;
 
+	#else
+	CAN_FilterTypeDef solenoidBoardFilter;
+	CAN_FilterBank canFilterBank;
+	CAN_FilterIDMaskConfig canFilterId;
+	CAN_FilterIDMaskConfig canFilterMask;
+
+	//  Configure Filter Bank Parameters except ID and Mask
+	solenoidBoardFilter.FilterBank = 0;
+	solenoidBoardFilter.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+	solenoidBoardFilter.FilterMode = CAN_FILTERMODE_IDMASK;
+	solenoidBoardFilter.FilterScale = CAN_FILTERSCALE_32BIT;
+	solenoidBoardFilter.FilterActivation = CAN_FILTER_ENABLE;
+
+	//  Configure only ID and Mask Filter Bank Parameters
+	canFilterBank.filterMode = CANIDFilterMode_32BitMask;
+
+	canFilterId.stdId = SOLENOID_BOARD_CAN_STANDARD_ID;
+	canFilterId.extId = 0;
+	canFilterId.ide = CAN_IDE_CLEAR;
+	canFilterId.rtr = CAN_RTR_CLEAR;
+
+	canFilterMask.stdId = 0x7FF;
+	canFilterMask.extId = 0;
+	canFilterMask.ide = CAN_IDE_CLEAR;
+	canFilterMask.rtr = CAN_RTR_CLEAR;
+
+	canFilterBank.id1 = &canFilterId;
+	canFilterBank.mask1 = &canFilterMask;
+
+	CAN_ConfigureFilterBank(&solenoidBoardFilter, &canFilterBank);
+	#endif
+	#warning "#if-ed out code"
+
 	//  Configure Filter
 	return HAL_CAN_ConfigFilter(hcan, &solenoidBoardFilter);
 }
@@ -328,7 +362,7 @@ static void CAN_ConfigureCANTxOverflowMessage(void)
 }
 #endif
 
-static void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan)
+void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *hcan)
 {
 	CAN_RxHeaderTypeDef canPacketHeader;
 	uint8_t canPacketData[8];
@@ -337,13 +371,12 @@ static void CAN_ReceiveMessageCallback(CAN_HandleTypeDef *hcan)
 
 	uint8_t solenoidData = canPacketData[SOLENOID_STATE_INDEX];
 
-	for (uint8_ft solenoidIndex = 0; solenoidIndex < NUM_SOLENOIDS; ++solenoidIndex)
-	{
+	for (uint8_ft solenoidIndex = 0; solenoidIndex < NUM_SOLENOIDS; ++solenoidIndex) {
 		setSolenoid(solenoidIndex, solenoidData & (1 << solenoidIndex));
 	}
 
 	toggleLed();
-	HAL_CAN_Receive_IT(&hcan, CAN_FIFO0);
+//	HAL_CAN_Receive_IT(&hcan, CAN_FIFO0);
 }
 
 #if 0
@@ -422,7 +455,8 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-
+	volatile uint8_t stayInLoop = 1;
+	while(stayInLoop) {}
   /* USER CODE END Error_Handler_Debug */
 }
 

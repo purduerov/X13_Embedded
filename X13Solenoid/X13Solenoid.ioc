@@ -1,6 +1,9 @@
 #MicroXplorer Configuration settings - do not modify
-CAN.CalculateTimeQuantum=2000.0
-CAN.IPParameters=CalculateTimeQuantum
+CAN.BS1=CAN_BS1_11TQ
+CAN.BS2=CAN_BS2_4TQ
+CAN.CalculateTimeQuantum=500.0
+CAN.IPParameters=CalculateTimeQuantum,Prescaler,BS2,BS1
+CAN.Prescaler=4
 File.Version=6
 KeepUserPlacement=false
 Mcu.Family=STM32F0
@@ -31,6 +34,7 @@ Mcu.UserConstants=
 Mcu.UserName=STM32F042K6Tx
 MxCube.Version=6.0.0
 MxDb.Version=DB.6.0.0
+NVIC.CEC_CAN_IRQn=true\:0\:0\:false\:false\:true\:true\:true
 NVIC.ForceEnableDMAVector=true
 NVIC.HardFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false
 NVIC.NonMaskableInt_IRQn=true\:0\:0\:false\:false\:true\:false\:false
