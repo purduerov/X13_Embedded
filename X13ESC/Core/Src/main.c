@@ -22,7 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "assert.h"
+#include "common.h"
 #include "canFilterBankConfig.h"
 
 /* USER CODE END Includes */
@@ -79,7 +80,8 @@ TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
 
-uint8_t adcConfigured = 0;
+uint8_ft adcConfigured = 0;
+uint32_t canId = CAN_ID_ERROR;
 
 /* USER CODE END PV */
 
@@ -147,8 +149,6 @@ int main(void)
   EnablePWMOutput(&htim3);
   // HAL_TIM_Base_Start_IT(&htim14);
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
-
-  HAL_CAN_Start(&hcan);
 
   /* USER CODE END 2 */
 
@@ -297,8 +297,6 @@ static void MX_CAN_Init(void)
 
   //  Configure CAN Interrupt Callbacks
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
-
-  CAN_ConfigureFilterForThrusterOperation(CAN_ID_ERROR);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -492,9 +490,7 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	uint32_t data_32 = _hcan->Instance->sFIFOMailBox[0].RDHR;
 	uint8_t *data = (uint8_t *)&data_32;
 
-	/*
-	 * Use Data to set TIM->CCR registers for PWM generation
-	 */
+	assert(_hcan->Instance->sFIFOMailBox[0].RIR == canId);
 
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
@@ -515,7 +511,6 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(_hadc);
-	uint32_t canId = 0x206;
 
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
