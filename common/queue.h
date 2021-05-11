@@ -8,31 +8,23 @@
 #ifndef INC_QUEUE_H_
 #define INC_QUEUE_H_
 
-#include "queue_api.h"
 #include "stm32f0xx_hal.h"
 
-typedef struct _QueueNode
+typedef enum
 {
-	void* data;
-	struct _QueueNode* next;
-} QueueNode;
+	QUEUE_SUCCESS = 0,
+	QUEUE_NO_AVAILABLE_QUEUES = 1,
+	QUEUE_INVALID_QUEUE_REQUEST_SIZE = 2,
+	QUEUE_MAX_QUEUE_SIZE_REACHED = 3,
+	QUEUE_EMPTY = 4
+} QueueErrorCode;
 
-typedef struct
-{
-	QueueNode* first;
-	QueueNode* last;
-	int size;
-
-	void* dataArray;
-	int elementSizeBytes;
-} Queue;
-
-void InitializeQueue(Queue* queue, void* dataArray, int elementSizeBytes);
-QueueErrorCode FillQueue(Queue* queue, int numArrayElements);
-void DeinitializeQueue(Queue* queue);
-void AddNodeToQueue(Queue* queue, QueueNode* queueNode);
-QueueNode* RemoveNodeFromQueue(Queue* queue);
-
-void byteCopy(uint8_t* source, uint8_t* dest, int numBytes);
+void InitializeQueueModule();
+QueueErrorCode CreateQueue(void* dataArray, int elementSizeBytes, int numArrayElements, int* queueHandle);
+QueueErrorCode AddToQueue(int queueHandle, void* data);
+QueueErrorCode RemoveFromQueue(int queueHandle, void** data);
+void FreeQueue(int queueHandle);
+int isQueueEmpty(int queueHandle);
+int getQueueSize(int queueHandle);
 
 #endif /* INC_QUEUE_H_ */

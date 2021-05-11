@@ -19,6 +19,30 @@
 #define I(handle) handle.handle
 #endif
 
+typedef struct _QueueNode
+{
+	void* data;
+	struct _QueueNode* next;
+} QueueNode;
+
+typedef struct
+{
+	QueueNode* first;
+	QueueNode* last;
+	int size;
+
+	void* dataArray;
+	int elementSizeBytes;
+} Queue;
+
+static void InitializeQueue(Queue* queue, void* dataArray, int elementSizeBytes);
+static QueueErrorCode FillQueue(Queue* queue, int numArrayElements);
+static void DeinitializeQueue(Queue* queue);
+static void AddNodeToQueue(Queue* queue, QueueNode* queueNode);
+static QueueNode* RemoveNodeFromQueue(Queue* queue);
+
+static void byteCopy(uint8_t* source, uint8_t* dest, int numBytes);
+
 Queue hierarchyQueue;
 QueueNode queueHandleNodes[NUM_QUEUES];
 queue_handle_t queueHandleNumbers[NUM_QUEUES];
