@@ -61,6 +61,9 @@
 #define CAN_ID_206_FLASH_MS 2000
 #define ERROR_FLASH_MS 4000
 
+#define ESC_CONTROL_CAN_FIFO_NUMBER 0
+#define ESC_CONTROL_CAN_FILTER_BANK_NUMBER 0
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -94,7 +97,7 @@ static void MX_TIM3_Init(void);
 void EnablePWMOutput(TIM_HandleTypeDef *_htim);
 int byte_to_pwm(int byte);  //  Imported from X12 ESC Code
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
+void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
@@ -430,19 +433,19 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
+void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber)
 {
-	CAN_FilterTypeDef thrusterOperationFilter;
+	CAN_FilterTypeDef filter;
 	CAN_FilterBank canFilterBank;
 	CAN_FilterIDMaskConfig canFilterId;
 	CAN_FilterIDMaskConfig canFilterMask;
 
 	//  Configure Filter Bank Parameters except ID and Mask
-	thrusterOperationFilter.FilterFIFOAssignment = CAN_FILTER_FIFO0;
-	thrusterOperationFilter.FilterBank = 0;
-	thrusterOperationFilter.FilterMode = CAN_FILTERMODE_IDMASK;
-	thrusterOperationFilter.FilterScale = CAN_FILTERSCALE_32BIT;
-	thrusterOperationFilter.FilterActivation = CAN_FILTER_ENABLE;
+	filter.FilterFIFOAssignment = fifoNumber;
+	filter.FilterBank = filterBankNumber;
+	filter.FilterMode = CAN_FILTERMODE_IDMASK;
+	filter.FilterScale = CAN_FILTERSCALE_32BIT;
+	filter.FilterActivation = CAN_FILTER_ENABLE;
 
 	//  Configure only ID and Mask Filter Bank Parameters
 	canFilterBank.filterMode = CANIDFilterMode_32BitMask;
@@ -460,8 +463,8 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 	canFilterBank.id1 = &canFilterId;
 	canFilterBank.mask1 = &canFilterMask;
 
-	CAN_ConfigureFilterBank(&thrusterOperationFilter, &canFilterBank);
-	HAL_CAN_ConfigFilter(&hcan, &thrusterOperationFilter);
+	CAN_ConfigureFilterBank(&filter, &canFilterBank);
+	HAL_CAN_ConfigFilter(&hcan, &filter);
 }
 
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
@@ -520,8 +523,11 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 
 	HAL_ADC_Stop_IT(_hadc);
 
-	//  Configure CAN Filter for Thrusters and
-	CAN_ConfigureFilterForThrusterOperation(canId);
+	//  Configure CAN Filter for Thrusters
+	CAN_ConfigureFilterForCanRecvOperation(
+			canId,
+			ESC_CONTROL_CAN_FIFO_NUMBER,
+			ESC_CONTROL_CAN_FILTER_BANK_NUMBER);
 	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
 
 	//  Restart TIM14 to flash PA15 LED
