@@ -7,6 +7,11 @@ for the [STM32F042K6T6](https://www.st.com/content/ccc/resource/technical/docume
 See the [F0 reference manual](https://www.st.com/resource/en/reference_manual/dm00031936-stm32f0x1stm32f0x2stm32f0x8-advanced-armbased-32bit-mcus-stmicroelectronics.pdf) too.
 
 
+## Building and generating code
+Driver code is not tracked by git. To get it, open the IOC file for the project
+and go to Project > Generate Code. This will produce the appropriate Driver/ folders
+for the code.
+
 ### Recommended settings
 ##### Optimization
 Set optimization for Release builds to -03 rather than -Osize (the default). This setting is in
