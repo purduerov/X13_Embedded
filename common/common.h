@@ -26,7 +26,7 @@ typedef uint_fast8_t uint8_ft;
 #define N_ELEMENTS(ARR) (sizeof(ARR) / sizeof(ARR[0]))
 
 // Generate bitmasks
-#define MASK_OF(N_BITS) ((N_BITS << 1) - 1)
+#define MASK_OF(N_BITS) (((N_BITS) << 1) - 1)
 
 // Stuff for debug vs release builds
 #ifdef DEBUG

@@ -33,7 +33,7 @@ for(uint32_t i = 0; i < N_ELEMENTS(buffer); ++i) {
 
 ### Mask of lowest n bits
 ```C
-#define MASK_OF(N_BITS) ((N_BITS << 1) - 1)
+#define MASK_OF(N_BITS) (((N_BITS) << 1) - 1)
 ```
 Usage
 ```C
