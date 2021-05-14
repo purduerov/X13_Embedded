@@ -27,7 +27,7 @@ typedef struct _queue_handle_t
 void InitializeQueueModule();
 QueueErrorCode CreateQueue(void *dataArray, int elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle);
 QueueErrorCode AddToQueue(queue_handle_t queueHandle, void const *data);
-QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void **data);
+QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void *data);
 void FreeQueue(queue_handle_t queueHandle);
 int isQueueEmpty(queue_handle_t queueHandle);
 int getQueueSize(queue_handle_t queueHandle);

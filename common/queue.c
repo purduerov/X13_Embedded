@@ -106,7 +106,7 @@ QueueErrorCode AddToQueue(queue_handle_t queueHandle, void const *data)
 	return QUEUE_SUCCESS;
 }
 
-QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void **data)
+QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void *data)
 {
 	QueueNode *queueNode;
 
@@ -116,8 +116,9 @@ QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void **data)
 		return QUEUE_EMPTY;
 	}
 
+	//  Copy data from Queue Node to data
+	memcpy(data, queueNode->data, queues[I(queueHandle)].elementSizeBytes);
 	AddNodeToQueue(&(freeQueues[I(queueHandle)]), queueNode);
-	*data = queueNode->data;
 
 	return QUEUE_SUCCESS;
 }
