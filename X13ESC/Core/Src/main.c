@@ -24,11 +24,18 @@
 /* USER CODE BEGIN Includes */
 
 #include "canFilterBankConfig.h"
+#include "queue.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
+
+typedef struct
+{
+	CAN_TxHeaderTypeDef canTxHeader;
+	uint8_t data[8];
+} CanTxData;
 
 /* USER CODE END PTD */
 
@@ -64,6 +71,8 @@
 #define ESC_CONTROL_CAN_FIFO_NUMBER 0
 #define ESC_CONTROL_CAN_FILTER_BANK_NUMBER 0
 
+#define NUM_CAN_TX_QUEUE_MESSAGES 4
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -83,6 +92,10 @@ TIM_HandleTypeDef htim14;
 
 uint8_t adcConfigured = 0;
 
+queue_handle_t canTxQueueHandle;
+CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
+CanTxData canTxPrivateMessageToSend;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -98,9 +111,11 @@ void EnablePWMOutput(TIM_HandleTypeDef *_htim);
 int byte_to_pwm(int byte);  //  Imported from X12 ESC Code
 
 void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
+void SendCANMessage(CanTxData *canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 
@@ -145,15 +160,60 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+
   //  Used to Initialize the CAN TX Queue
-  //InitializeQueueModule();
-  //CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
+  InitializeQueueModule();
+  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
 
   //  Enable PWM Outputs to ESCs
-  EnablePWMOutput(&htim3);
+  //EnablePWMOutput(&htim3);
 
   //  Start Timer to begin sampling ESC_ID with ADC
-  HAL_TIM_Base_Start_IT(&htim14);
+  //HAL_TIM_Base_Start_IT(&htim14);
+
+	CAN_ConfigureFilterForCanRecvOperation(
+			0x201,
+			ESC_CONTROL_CAN_FIFO_NUMBER,
+			ESC_CONTROL_CAN_FILTER_BANK_NUMBER);
+	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
+
+  //  Create CAN Message
+  canTxPrivateMessageToSend.canTxHeader.StdId = 0x212;
+  canTxPrivateMessageToSend.canTxHeader.DLC = 4;
+  canTxPrivateMessageToSend.canTxHeader.IDE = CAN_ID_STD;
+  canTxPrivateMessageToSend.canTxHeader.RTR = CAN_RTR_DATA;
+  canTxPrivateMessageToSend.data[0] = 0x01;
+  canTxPrivateMessageToSend.data[1] = 0x04;
+  canTxPrivateMessageToSend.data[2] = 0x09;
+  canTxPrivateMessageToSend.data[3] = 0x10;
+
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[0] = 0x11;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[1] = 0x12;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[2] = 0x13;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x14;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x15;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x16;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x17;
+  SendCANMessage(&canTxPrivateMessageToSend);
+
+  canTxPrivateMessageToSend.data[3] = 0x18;
+  SendCANMessage(&canTxPrivateMessageToSend);
 
   /* USER CODE END 2 */
 
@@ -300,6 +360,12 @@ static void MX_CAN_Init(void)
   //  Enable FIFO0 Message Pending Interrupt
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
+
+  //  Enable TX Request Complete Interrupt
+  HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -547,6 +613,40 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 	{
 		HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 	}
+}
+
+void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
+{
+	uint32_t txMailboxNumber;
+	CanTxData canTxDataToSend;
+
+	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
+	{
+		RemoveFromQueue(canTxQueueHandle, (void*)&canTxDataToSend);
+		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend.canTxHeader), canTxDataToSend.data, &txMailboxNumber);
+	}
+}
+
+void SendCANMessage(CanTxData *canTxDataToSend)
+{
+	uint32_t txMailboxNumber;
+	uint32_t numFreeTxMailboxes;
+
+	HAL_CAN_DeactivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
+	numFreeTxMailboxes = HAL_CAN_GetTxMailboxesFreeLevel(&hcan);
+
+	if (numFreeTxMailboxes > 0 && isQueueEmpty(canTxQueueHandle))
+	{
+		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
+	}
+	else
+	{
+		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
+		{
+			; //  Queue is Full
+		}
+	}
+	HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
 }
 
 void EnablePWMOutput(TIM_HandleTypeDef *_htim)
