@@ -11,7 +11,7 @@ Included are:
 ### Setup
 To add the common directory to your project:
 Go to Project > Properties > C/C++ Build > Settings > Tool Settings > MCU GCC Compiler > Include Paths
-and add "../../common" to the list of paths.
+and add "../../common" to the list of paths. **Note**: this must be done for Debug and Release.
 
 The neccesary source files also need to be compiled.  To specify this:
 Go to Project > Properties > C/C++ General > Paths and Symbols > Source Location
