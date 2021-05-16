@@ -490,7 +490,7 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	uint32_t data_32 = _hcan->Instance->sFIFOMailBox[0].RDHR;
 	uint8_t *data = (uint8_t *)&data_32;
 
-	assert(_hcan->Instance->sFIFOMailBox[0].RIR == canId);
+	assert(_hcan->Instance->sFIFOMailBox[0].RIR >> 21 == canId);
 
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
