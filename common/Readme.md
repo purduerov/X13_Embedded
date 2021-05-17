@@ -14,10 +14,10 @@ Go to Project > Properties > C/C++ Build > Settings > Tool Settings > MCU GCC Co
 and add "../../common" to the list of paths. **Note**: this must be done for Debug and Release.
 
 The neccesary source files also need to be compiled.  To specify this:
-Go to Project > Properties > C/C++ General > Paths and Symbols > Source Location
-Click the "Link Folder" button
+Go to Project > Properties > C/C++ General > Paths and Symbols > Source Location.
+Click the "Link Folder" button.
 Enter "common" (without the quotes) into the Folder name box.
-Check "Link to folder in file system"
+Check "Link to folder in file system".
 Enter "PROJECT_LOC/../common" in the box. PROJECT_LOC is a variable for the path to
 the current project.
 
