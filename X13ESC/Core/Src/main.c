@@ -22,6 +22,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "swd_write.h"
+
 #include "assert.h"
 #include "common.h"
 #include "canFilterBankConfig.h"
@@ -545,6 +547,8 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	//  Restart TIM14 to flash PA15 LED
 	htim14.Instance->ARR = htim14.Init.Period;
 	HAL_TIM_Base_Start_IT(&htim14);
+
+	dbprintf("Can ID: %lx\n", canId);
 }
 
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
