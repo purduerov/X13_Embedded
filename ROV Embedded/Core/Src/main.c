@@ -228,7 +228,7 @@ int main(void)
 		  	  }
 
 		  	CAN_transfer_out_node.canTxHeader.StdId = POWER_BRICK_REPLY_CAN_ID;
-		  	CAN_transfer_out_node.canTxHeader.DLC = i2c_transfer_out_node.num_data;
+		  	CAN_transfer_out_node.canTxHeader.DLC = i2c_transfer_out_node.num_data + 2;
 		  	CAN_transfer_out_node.canTxHeader.IDE = CAN_ID_STD;
 		  	CAN_transfer_out_node.canTxHeader.RTR = CAN_RTR_DATA;
 
