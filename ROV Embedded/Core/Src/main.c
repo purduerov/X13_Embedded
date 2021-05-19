@@ -75,8 +75,6 @@ CAN_HandleTypeDef hcan;
 
 I2C_HandleTypeDef hi2c1;
 
-TIM_HandleTypeDef htim14;
-
 /* USER CODE BEGIN PV */
 
 int canTxQueueHandle;
@@ -95,12 +93,9 @@ uint16_t slave_address_2 = 0x23; // Address of the second slave
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM14_Init(void);
 static void MX_CAN_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
-void LEDFlash(TIM_HandleTypeDef *htim);
-
 void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
 
 void SendCANMessage(CanTxData* canTxDataToSend);
@@ -145,7 +140,6 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM14_Init();
   MX_CAN_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
@@ -182,10 +176,6 @@ int main(void)
   I2CTxData i2c_transfer_out_node;
   CanTxData CAN_transfer_out_node;
   uint8_t can_data0 = 0;
-
-
-  HAL_TIM_Base_Start_IT(&htim14);
-  HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, LEDFlash);
 
   //HAL_I2C_Mem_Read(&hi2c1, slave_address_1 << 1, temp_request_code, 1,
 		  //receiving_array, sizeof(uint16_t), 1000000);
@@ -306,7 +296,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  HAL_RCC_MCOConfig(RCC_MCO, RCC_MCO1SOURCE_SYSCLK, RCC_MCODIV_1);
 }
 
 /**
@@ -423,45 +412,6 @@ static void MX_I2C1_Init(void)
 }
 
 /**
-  * @brief TIM14 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM14_Init(void)
-{
-
-  /* USER CODE BEGIN TIM14_Init 0 */
-
-  /* USER CODE END TIM14_Init 0 */
-
-  /* USER CODE BEGIN TIM14_Init 1 */
-
-  /* USER CODE END TIM14_Init 1 */
-  htim14.Instance = TIM14;
-  htim14.Init.Prescaler = 0;
-  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = 65535;
-  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM14_Init 2 */
-  htim14.Init.Prescaler = 7999;
-  htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = 125;
-  htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE END TIM14_Init 2 */
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -496,14 +446,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF0_MCO;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PB3 PB4 PB6 PB7 */
   GPIO_InitStruct.Pin = GPIO_PIN_3|GPIO_PIN_4|GPIO_PIN_6|GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -514,9 +456,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void LEDFlash(TIM_HandleTypeDef *htim) {
-	HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-}
 
 void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber)
 {
@@ -590,8 +529,6 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF1R, CAN_RF1R_RFOM1);
-
-
 
 	i2cTxData.data[0] = data[3];
 	i2cTxData.data[1] = data[4];
