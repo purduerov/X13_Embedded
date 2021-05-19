@@ -41,9 +41,9 @@ typedef struct
 {
 	//  Parameters to store
 	uint8_t num_data;
-	uint8_t command;
+	uint16_t command;
 	uint8_t data[8];
-	uint8_t dev_address;
+	uint16_t dev_address;
 	uint8_t read_write;
 } I2CTxData;
 
@@ -173,9 +173,6 @@ int main(void)
 //  uint8_t command_code = 0x01;
 //  uint8_t zeros = 0x0;
 //  uint8_t i2c_read_array[1] = {};
-  I2CTxData i2c_transfer_out_node;
-  CanTxData CAN_transfer_out_node;
-  uint8_t can_data0 = 0;
 
   //HAL_I2C_Mem_Read(&hi2c1, slave_address_1 << 1, temp_request_code, 1,
 		  //receiving_array, sizeof(uint16_t), 1000000);
@@ -203,22 +200,28 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  I2CTxData i2c_transfer_out_node;
+  CanTxData CAN_transfer_out_node;
+  uint8_t can_data0 = 0;
+
   while (1)
   {
 	  if (!isQueueEmpty(i2cTxQueueHandle))
 	  	  {
 		  	  HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
 		  	  RemoveFromQueue(i2cTxQueueHandle, &i2c_transfer_out_node);
+		  	  HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
+
 		  	  if (i2c_transfer_out_node.read_write) //It's a read
 		  	  {
 		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node.dev_address << 1,
 		  				i2c_transfer_out_node.command,
-		  				sizeof(uint8_t), i2c_transfer_out_node.data, sizeof(uint8_t), 1000);
+		  				1, i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, 1000);
 		  	  }
 		  	  else //It's a write
 		  	  {
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
-		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command, sizeof(uint8_t),
+		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command, 1,
 		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, 1000);
 		  	  }
 
@@ -237,17 +240,10 @@ int main(void)
 		  	{
 		  		CAN_transfer_out_node.data[i + 2] = i2c_transfer_out_node.data[i];
 		  	}
-		  	//SendCANMessage(CAN_transfer_out_node);
 
-		  	AddToQueue(canTxQueueHandle, &CAN_transfer_out_node);
-
-		  	  //SendCANMessage(transfer_out_node);
-	  		  /*
-	  		   * Remove Node from Queue
-	  		   * RemoveNode(i2cTxQueueHandle, &i2cTxPrivateMessageToSend);
-	  		   * Send I2C Message
-	  		   */
-		  	  HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
+		  	HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
+		  	SendCANMessage(CAN_transfer_out_node);
+		  	HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
 	  	  }
 
     /* USER CODE END WHILE */
