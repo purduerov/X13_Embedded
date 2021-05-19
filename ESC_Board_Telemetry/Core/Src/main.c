@@ -166,7 +166,7 @@ static uint8_t telemetryBuffer[KISS_CRC_COUNT] = {0};
 static uint8_t telemetryBytesRecieved;
 static uint8_t uartRxBuffer;
 static volatile uint8_t sendTelemetry;
-// Not sure if some of the above variables should or shouldn't be global so that
+// Not sure if some of the above variables should or shouldn't be volatile so that
 // main properly checks them after the interrupt modifies them.
 /* USER CODE END PV */
 
@@ -194,8 +194,6 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
-
-static void UART_receive(void);
 
 static uint8_t packROVVolt(uint16_t kissVolt);
 static void sendTelemetryData(void);
@@ -774,7 +772,7 @@ void SendCANMessage(CanTxData *canTxDataToSend)
 	{
 		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
 		{
-			; //  Queue is Full
+			assert(0);
 		}
 	}
 }
@@ -848,9 +846,7 @@ void sendTelemetryData(void) {
 	canSendPacket.data[ROV_ERPM_LOW] = telemetryBuffer[KISS_ERPM_LOW];
 	canSendPacket.canTxHeader.StdId = SEND_ID;
 	canSendPacket.canTxHeader.DLC = ROV_TLM_COUNT;
-	// SendCANMessage(&canSendPacket);
-	(void)canSendPacket;
-	#warning "Not sending telemetry back over CAN";
+	SendCANMessage(&canSendPacket);
 }
 
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
