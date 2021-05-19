@@ -2,7 +2,7 @@
  * canFilterBankConfig.h
  *
  *  Created on: Feb 25, 2021
- *      Author: Conne
+ *      Author: Conner
  */
 
 #ifndef INC_CANFILTERBANKCONFIG_H_
@@ -58,7 +58,7 @@ typedef enum
 	CAN_FILTER_BANK_INVALID_FILTER_MODE = 4
 } CAN_FilterBankConfigError;
 
-CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef* canFilterInstance, CAN_FilterBank* canFilterBank);
+CAN_FilterBankConfigError CAN_ConfigureFilterBank(CAN_FilterTypeDef *canFilterInstance, CAN_FilterBank *canFilterBank);
 
 
 #endif /* INC_CANFILTERBANKCONFIG_H_ */
