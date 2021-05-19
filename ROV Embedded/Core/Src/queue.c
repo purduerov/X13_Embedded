@@ -166,7 +166,7 @@ void DeinitializeQueue(Queue* queue)
 void AddNodeToQueue(Queue* queue, QueueNode* queueNode)
 {
 	//  If first node
-	if (queue->last == NULL)
+	if (queue->first == NULL)
 	{
 		queue->first = queueNode;
 		queue->last = queueNode;

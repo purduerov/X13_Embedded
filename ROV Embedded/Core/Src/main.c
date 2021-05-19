@@ -66,7 +66,7 @@ typedef struct
 
 #define I2C_BRICK_0_DEVICE_ADDRESS 0x7F
 #define I2C_BRICK_1_DEVICE_ADDRESS 0x23
-#define I2C_TRANSACTION_TIMEOUT_MS 1000
+#define I2C_TRANSACTION_TIMEOUT_MS 10000
 
 /* USER CODE END PD */
 
@@ -99,13 +99,14 @@ static void MX_CAN_Init(void);
 static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
-
 void SendCANMessage(CanTxData* canTxDataToSend);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
+
+HAL_StatusTypeDef I2C_StopConditionCallback(I2C_HandleTypeDef *hi2c, uint32_t ITFlags, uint32_t ITSources);
 
 /* USER CODE END PFP */
 
@@ -206,6 +207,9 @@ int main(void)
   CanTxData CAN_transfer_out_node;
   uint8_t can_data0 = 0;
 
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
+
   while (1)
   {
 	  if (!isQueueEmpty(i2cTxQueueHandle))
@@ -222,9 +226,11 @@ int main(void)
 		  	  }
 		  	  else //It's a write
 		  	  {
+		  		hi2c1.Instance->CR1 |= I2C_CR1_STOPIE;
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
 		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command, 1,
-		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, I2C_TRANSACTION_TIMEOUT_MS);
+		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data + 1, I2C_TRANSACTION_TIMEOUT_MS);
+		  		hi2c1.Instance->CR1 &= ~I2C_CR1_STOPIE;
 		  	  }
 
 		  	CAN_transfer_out_node.canTxHeader.StdId = POWER_BRICK_REPLY_CAN_ID;
@@ -244,7 +250,7 @@ int main(void)
 		  	}
 
 		  	HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
-		  	SendCANMessage(CAN_transfer_out_node);
+		  	SendCANMessage(&CAN_transfer_out_node);
 		  	HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
 	  	  }
 
@@ -400,10 +406,10 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   __HAL_I2C_DISABLE(&hi2c1);
-
   hi2c1.Instance->CR1 |= I2C_CR1_PECEN;
-
   __HAL_I2C_ENABLE(&hi2c1);
+
+  hi2c1.XferISR = I2C_StopConditionCallback;
 
   /* USER CODE END I2C1_Init 2 */
 
@@ -529,8 +535,8 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 
 	i2cTxData.data[0] = data[2];
 	i2cTxData.data[1] = data[3];
-	i2cTxData.command = data[1];
-	i2cTxData.dev_address = (data[0] << 7) ? I2C_BRICK_1_DEVICE_ADDRESS : I2C_BRICK_0_DEVICE_ADDRESS;
+	i2cTxData.command = (uint16_t)data[1];
+	i2cTxData.dev_address = ((data[0] & 0x01) != 0x00) ? I2C_BRICK_1_DEVICE_ADDRESS : I2C_BRICK_0_DEVICE_ADDRESS;
 	i2cTxData.read_write = (data[0] & 0x02) >> 1;
 	i2cTxData.num_data = numBytesReceived - 2;
 	AddToQueue(i2cTxQueueHandle, &i2cTxData);
@@ -566,6 +572,23 @@ void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 		RemoveFromQueue(canTxQueueHandle, (void*)&canTxDataToSend);
 		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend.canTxHeader), canTxDataToSend.data, &txMailboxNumber);
 	}
+}
+
+HAL_StatusTypeDef I2C_StopConditionCallback(I2C_HandleTypeDef *hi2c, uint32_t ITFlags, uint32_t ITSources)
+{
+	uint32_t a;
+	uint32_t b;
+	a = ITSources & I2C_CR1_STOPIE;
+	b = ITFlags & I2C_ISR_STOPF;
+	if ((a != 0) && (b != 0))
+	{
+		a = ITFlags & I2C_ISR_TXIS;
+		if (a == 0x00)
+		{
+			hi2c->Instance->ISR |= I2C_ISR_TXIS;
+		}
+	}
+	hi2c->Instance->ICR |= I2C_ICR_STOPCF;
 }
 
 /* USER CODE END 4 */
