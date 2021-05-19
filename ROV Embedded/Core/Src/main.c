@@ -59,9 +59,14 @@ typedef struct
 #define POWER_BRICK_OPERATION_CAN_FIFO_NUMBER 1
 #define POWER_BRICK_OPERATION_CAN_FILTER_BANK_NUMBER 1
 
-#define NUM_CAN_TX_QUEUE_MESSAGES 5
+#define POWER_BRICK_REPLY_CAN_ID 0x215
 
+#define NUM_CAN_TX_QUEUE_MESSAGES 5
 #define NUM_I2C_TX_QUEUE_MESSAGES 10
+
+#define I2C_BRICK_0_DEVICE_ADDRESS 0x7F
+#define I2C_BRICK_1_DEVICE_ADDRESS 0x23
+#define I2C_TRANSACTION_TIMEOUT_MS 1000
 
 /* USER CODE END PD */
 
@@ -84,9 +89,6 @@ CanTxData canTxPrivateMessageToSend;
 int i2cTxQueueHandle;
 I2CTxData i2cTxData[NUM_I2C_TX_QUEUE_MESSAGES];
 I2CTxData* i2cTxPrivateMessageToSend;
-
-uint16_t slave_address_1 = 0x7F; // Address of the first slave
-uint16_t slave_address_2 = 0x23; // Address of the second slave
 
 /* USER CODE END PV */
 
@@ -216,16 +218,16 @@ int main(void)
 		  	  {
 		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node.dev_address << 1,
 		  				i2c_transfer_out_node.command,
-		  				1, i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, 1000);
+		  				1, i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, I2C_TRANSACTION_TIMEOUT_MS);
 		  	  }
 		  	  else //It's a write
 		  	  {
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
 		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command, 1,
-		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, 1000);
+		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, I2C_TRANSACTION_TIMEOUT_MS);
 		  	  }
 
-		  	CAN_transfer_out_node.canTxHeader.StdId = 0x215;
+		  	CAN_transfer_out_node.canTxHeader.StdId = POWER_BRICK_REPLY_CAN_ID;
 		  	CAN_transfer_out_node.canTxHeader.DLC = i2c_transfer_out_node.num_data;
 		  	CAN_transfer_out_node.canTxHeader.IDE = CAN_ID_STD;
 		  	CAN_transfer_out_node.canTxHeader.RTR = CAN_RTR_DATA;
@@ -233,7 +235,7 @@ int main(void)
 		  	can_data0 = 0;
 		  	can_data0 = i2c_transfer_out_node.num_data << 2;
 		  	can_data0 |= i2c_transfer_out_node.read_write << 1;
-		  	can_data0 |= i2c_transfer_out_node.dev_address == slave_address_1 ? 0 : 1;
+		  	can_data0 |= (i2c_transfer_out_node.dev_address == I2C_BRICK_0_DEVICE_ADDRESS) ? 0 : 1;
 		  	CAN_transfer_out_node.data[0] = can_data0;
 		  	CAN_transfer_out_node.data[1] = i2c_transfer_out_node.command;
 		  	for (int i = 0; i < i2c_transfer_out_node.num_data; i++)
@@ -529,7 +531,7 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	i2cTxData.data[0] = data[3];
 	i2cTxData.data[1] = data[4];
 	i2cTxData.command = data[1];
-	i2cTxData.dev_address = data[0] << 7 ? slave_address_2 : slave_address_1;
+	i2cTxData.dev_address = (data[0] << 7) ? I2C_BRICK_1_DEVICE_ADDRESS : I2C_BRICK_0_DEVICE_ADDRESS;
 	read_write_holder = data[0];
 	read_write_holder = read_write_holder << 6;
 	read_write_holder = read_write_holder >> 7;
