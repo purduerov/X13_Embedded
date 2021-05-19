@@ -516,7 +516,6 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	uint8_t data[4];
 	uint32_t numBytesReceived;
 	I2CTxData i2cTxData;
-	uint8_t read_write_holder = 0x0;
 
 	numBytesReceived = (CAN_RDT1R_DLC & _hcan->Instance->sFIFOMailBox[1].RDTR) >> CAN_RDT1R_DLC_Pos;
 
@@ -528,29 +527,16 @@ void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF1R, CAN_RF1R_RFOM1);
 
-	i2cTxData.data[0] = data[3];
-	i2cTxData.data[1] = data[4];
+	i2cTxData.data[0] = data[2];
+	i2cTxData.data[1] = data[3];
 	i2cTxData.command = data[1];
 	i2cTxData.dev_address = (data[0] << 7) ? I2C_BRICK_1_DEVICE_ADDRESS : I2C_BRICK_0_DEVICE_ADDRESS;
-	read_write_holder = data[0];
-	read_write_holder = read_write_holder << 6;
-	read_write_holder = read_write_holder >> 7;
-	i2cTxData.read_write = read_write_holder;
+	i2cTxData.read_write = (data[0] & 0x02) >> 1;
 	i2cTxData.num_data = numBytesReceived - 2;
-
 	AddToQueue(i2cTxQueueHandle, &i2cTxData);
 
-	/*
-	 * I2C Communication with Bricks
-	 * i2cTxData = ?
-	 * Add Message to I2C Transmit Queue
-	 * AddToQueue(i2cTxQueueHandle, &i2cTxData);
-	 */
-
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+	//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
-
-
 }
 
 void SendCANMessage(CanTxData* canTxDataToSend)
