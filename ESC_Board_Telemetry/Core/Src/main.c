@@ -42,8 +42,9 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "common.h"
 #include "canFilterBankConfig.h"
-#include "queue_api.h"
+#include "queue.h"
 #include "stdint.h"
 
 /* USER CODE END Includes */
@@ -61,17 +62,8 @@ typedef struct
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define ASSERT_CONCAT_(a, b) a##b
-#define ASSERT_CONCAT(a, b) ASSERT_CONCAT_(a, b)
-#define compile_assert(e) enum { ASSERT_CONCAT(assert_line_, __LINE__) = 1/(!!(e)) }
-// From: http://www.pixelbeat.org/programming/gcc/static_assert.html
-
-#define N_ELEMENTS(ARR) (sizeof(ARR) / sizeof(ARR[0]))
-
-#define MASK_OF(N_BITS) ((N_BITS << 1) - 1)
 
 #define NUM_ADC_INIT_WAIT_MS 500
-
 
 #define CAN_ST_ID_REG_N_BITS 11
 #define CAN_ST_ID_REG_MAX MASK_OF(CAN_ST_ID_REG_N_BITS)
@@ -260,8 +252,7 @@ int main(void)
   HAL_TIM_Base_Start_IT(&htim14);
 
   // Start waiting for a telemetry packet to be sent.
-  // HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
-	#warning "Receiving telemetry disabled";
+  HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
 
   /* USER CODE END 2 */
 
@@ -272,7 +263,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    	// UART_receive();
 		if(sendTelemetry) {
 			if(telemetryBytesRecieved >= KISS_NO_CRC_COUNT) {
 				sendTelemetryData();
@@ -280,7 +270,7 @@ int main(void)
 			telemetryBytesRecieved = 0;
 			sendTelemetry = 0;
 		}
-		// asm volatile("wfi");
+		asm volatile("wfi");
     }
   /* USER CODE END 3 */
 }
@@ -537,7 +527,6 @@ static void MX_TIM14_Init(void)
   /* USER CODE BEGIN TIM14_Init 2 */
 
   //  Reconfigure Timer ARR to count up to NUM_ADC_INIT_WAIT_MS ms until ADC conversion start
-  htim14.Init.Period = NUM_ADC_INIT_WAIT_MS - 1;
   htim14.Instance->ARR = htim14.Init.Period;
 
   //  Configure Timer Interrupt Callback
@@ -812,7 +801,7 @@ uint32_t byte_to_pwm(uint8_t byte)
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	telemetryBuffer[telemetryBytesRecieved] = huart->pRxBuffPtr[0];
+	telemetryBuffer[telemetryBytesRecieved] = uartRxBuffer;
 	++telemetryBytesRecieved;
 	if(telemetryBytesRecieved == 1) {
 		// start timer. A new packet is sent every 32 ms.
@@ -872,36 +861,6 @@ void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *htim)
 	// Stop the timer.
 	HAL_TIM_Base_Stop_IT(htim);
 	TIM16->CNT = 0;
-
-	// Prepare for the next receive.
-	// HAL_UART_Receive_IT(&huart1, &uartRxBuffer, 1);
-}
-
-static void UART_receive(void) {
-	uint8_t buffer;
-	HAL_StatusTypeDef status = HAL_UART_Receive(&huart1, &buffer, 1, 10);
-	if(status != HAL_OK) {
-		// HAL_TIM_Base_Stop_IT(&htim16);
-		// TIM16->CNT = 0;
-		telemetryBytesRecieved = 0;
-		return;
-	}
-
-	telemetryBuffer[telemetryBytesRecieved] = buffer;
-	++telemetryBytesRecieved;
-	if(telemetryBytesRecieved == 1) {
-		// start timer. A new packet is sent every 32 ms.
-		// The Telemetry packet should arrive in the first 10 ms.
-		// After 10 ms, send whatever has been received, which may or may not include a 10th CRC byte.
-		// HAL_TIM_Base_Start_IT(&htim16);
-		telemetryBuffer[KISS_CRC] = 0;  // Clear the CRC byte in case this packet doesn't have one.
-	} else if(telemetryBytesRecieved == KISS_CRC_COUNT) {
-		// As an optimization, if we've gotten all 10 bytes, don't bother waiting and set them to be sent.
-		// Stop timer
-		// HAL_TIM_Base_Stop_IT(&htim16);
-		// TIM16->CNT = 0;
-		sendTelemetry = 1;
-	}
 }
 /* USER CODE END 4 */
 
@@ -931,7 +890,7 @@ void assert_failed(uint8_t *file, uint32_t line)
     /* User can add his own implementation to report the file name and line number,
          tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
 	volatile int stayInLoop = 1;
-	while(stayInLoop);
+	while(stayInLoop) {}
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
