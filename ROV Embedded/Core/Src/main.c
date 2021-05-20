@@ -90,6 +90,9 @@ int i2cTxQueueHandle;
 I2CTxData i2cTxData[NUM_I2C_TX_QUEUE_MESSAGES];
 I2CTxData* i2cTxPrivateMessageToSend;
 
+int i2cTransactionReadyToStart = 1;
+I2CTxData i2c_transfer_out_node;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -105,8 +108,7 @@ void SendCANMessage(CanTxData* canTxDataToSend);
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void CAN_FIFO1_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
 void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
-
-HAL_StatusTypeDef I2C_StopConditionCallback(I2C_HandleTypeDef *hi2c, uint32_t ITFlags, uint32_t ITSources);
+void I2C_TransactionCompleteCallback(I2C_HandleTypeDef *hi2c);
 
 /* USER CODE END PFP */
 
@@ -203,55 +205,28 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  I2CTxData i2c_transfer_out_node;
-  CanTxData CAN_transfer_out_node;
-  uint8_t can_data0 = 0;
-
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
-  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
 
   while (1)
   {
-	  if (!isQueueEmpty(i2cTxQueueHandle))
+	  if (!isQueueEmpty(i2cTxQueueHandle) && i2cTransactionReadyToStart)
 	  	  {
+		  	  i2cTransactionReadyToStart = 0;
+
 		  	  HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
 		  	  RemoveFromQueue(i2cTxQueueHandle, &i2c_transfer_out_node);
 		  	  HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
 
 		  	  if (i2c_transfer_out_node.read_write) //It's a read
 		  	  {
-		  		HAL_I2C_Mem_Read(&hi2c1, i2c_transfer_out_node.dev_address << 1,
-		  				i2c_transfer_out_node.command,
-		  				1, i2c_transfer_out_node.data, i2c_transfer_out_node.num_data, I2C_TRANSACTION_TIMEOUT_MS);
+		  		HAL_I2C_Mem_Read_IT(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command,
+		  				1, i2c_transfer_out_node.data, i2c_transfer_out_node.num_data);
 		  	  }
 		  	  else //It's a write
 		  	  {
-		  		hi2c1.Instance->CR1 |= I2C_CR1_STOPIE;
 		  		hi2c1.Instance->CR2 |= I2C_CR2_PECBYTE;
-		  		HAL_I2C_Mem_Write(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command, 1,
-		  				i2c_transfer_out_node.data, i2c_transfer_out_node.num_data + 1, I2C_TRANSACTION_TIMEOUT_MS);
-		  		hi2c1.Instance->CR1 &= ~I2C_CR1_STOPIE;
+		  		HAL_I2C_Mem_Write_IT(&hi2c1, i2c_transfer_out_node.dev_address << 1, i2c_transfer_out_node.command,
+		  				1, i2c_transfer_out_node.data, i2c_transfer_out_node.num_data + 1);
 		  	  }
-
-		  	CAN_transfer_out_node.canTxHeader.StdId = POWER_BRICK_REPLY_CAN_ID;
-		  	CAN_transfer_out_node.canTxHeader.DLC = i2c_transfer_out_node.num_data + 2;
-		  	CAN_transfer_out_node.canTxHeader.IDE = CAN_ID_STD;
-		  	CAN_transfer_out_node.canTxHeader.RTR = CAN_RTR_DATA;
-
-		  	can_data0 = 0;
-		  	can_data0 = i2c_transfer_out_node.num_data << 2;
-		  	can_data0 |= i2c_transfer_out_node.read_write << 1;
-		  	can_data0 |= (i2c_transfer_out_node.dev_address == I2C_BRICK_0_DEVICE_ADDRESS) ? 0 : 1;
-		  	CAN_transfer_out_node.data[0] = can_data0;
-		  	CAN_transfer_out_node.data[1] = i2c_transfer_out_node.command;
-		  	for (int i = 0; i < i2c_transfer_out_node.num_data; i++)
-		  	{
-		  		CAN_transfer_out_node.data[i + 2] = i2c_transfer_out_node.data[i];
-		  	}
-
-		  	HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
-		  	SendCANMessage(&CAN_transfer_out_node);
-		  	HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
 	  	  }
 
     /* USER CODE END WHILE */
@@ -405,11 +380,12 @@ static void MX_I2C1_Init(void)
   }
   /* USER CODE BEGIN I2C1_Init 2 */
 
+  HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MEM_TX_COMPLETE_CB_ID, I2C_TransactionCompleteCallback);
+  HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MEM_RX_COMPLETE_CB_ID, I2C_TransactionCompleteCallback);
+
   __HAL_I2C_DISABLE(&hi2c1);
   hi2c1.Instance->CR1 |= I2C_CR1_PECEN;
   __HAL_I2C_ENABLE(&hi2c1);
-
-  hi2c1.XferISR = I2C_StopConditionCallback;
 
   /* USER CODE END I2C1_Init 2 */
 
@@ -574,21 +550,30 @@ void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 	}
 }
 
-HAL_StatusTypeDef I2C_StopConditionCallback(I2C_HandleTypeDef *hi2c, uint32_t ITFlags, uint32_t ITSources)
+void I2C_TransactionCompleteCallback(I2C_HandleTypeDef *hi2c)
 {
-	uint32_t a;
-	uint32_t b;
-	a = ITSources & I2C_CR1_STOPIE;
-	b = ITFlags & I2C_ISR_STOPF;
-	if ((a != 0) && (b != 0))
-	{
-		a = ITFlags & I2C_ISR_TXIS;
-		if (a == 0x00)
-		{
-			hi2c->Instance->ISR |= I2C_ISR_TXIS;
-		}
-	}
-	hi2c->Instance->ICR |= I2C_ICR_STOPCF;
+	CanTxData canTxMessage;
+
+	canTxMessage.canTxHeader.StdId = POWER_BRICK_REPLY_CAN_ID;
+	canTxMessage.canTxHeader.DLC = i2c_transfer_out_node.num_data + 2;
+	canTxMessage.canTxHeader.IDE = CAN_ID_STD;
+	canTxMessage.canTxHeader.RTR = CAN_RTR_DATA;
+
+	canTxMessage.data[0] = i2c_transfer_out_node.num_data << 2;
+	canTxMessage.data[0] |= i2c_transfer_out_node.read_write << 1;
+	canTxMessage.data[0] |= (i2c_transfer_out_node.dev_address == I2C_BRICK_0_DEVICE_ADDRESS) ? 0 : 1;
+
+  	canTxMessage.data[1] = i2c_transfer_out_node.command;
+  	for (int i = 0; i < i2c_transfer_out_node.num_data; i++)
+  	{
+  		canTxMessage.data[i + 2] = i2c_transfer_out_node.data[i];
+  	}
+
+  	HAL_NVIC_DisableIRQ(CEC_CAN_IRQn);
+  	SendCANMessage(&canTxMessage);
+  	HAL_NVIC_EnableIRQ(CEC_CAN_IRQn);
+
+  	i2cTransactionReadyToStart = 1;
 }
 
 /* USER CODE END 4 */
