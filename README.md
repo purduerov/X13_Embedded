@@ -12,6 +12,12 @@ Driver code is not tracked by git. To get it, open the IOC file for the project
 and go to Project > Generate Code. This will produce the appropriate Driver/ folders
 for the code.
 
+## More info
+See the [References folder](References) for information on usual setups and
+the [common folder](common) for information on setting up the shared implementations
+and the shared source files themselves.
+
+
 ### Recommended settings
 ##### Optimization
 Set optimization for Release builds to -03 rather than -Osize (the default). This setting is in

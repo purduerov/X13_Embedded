@@ -3,8 +3,8 @@ to Project > Properties > C/C++ Build > Settings > Build Steps (tab) > Post-buil
 [Source](https://www.openstm32.org/forumthread2152)
 
 It is recommended to set optimization in Release builds to -O3 rather than the default -Osize.
-Change this in Project > Properties > C/C++ Build > Settings > Tool Settings (tab) > MCU GCC Compiler > Optimization > Optimization Level.
-You may need to click in and out of Settings to get the right tab to show.
+Change this in Project > Properties > C/C++ Build > Settings > Tool Settings (tab) > MCU GCC Compiler >
+Optimization > Optimization Level. You may need to click in and out of Settings to get the right tab to show.
 
 
 ## Recommended Compiler Warnings
@@ -19,8 +19,8 @@ MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 * `-Wshift-negative-value` - Warns when left shifting a negative value, which can interfere with the sign bit.
 * `-Wtype-limits` - Warns if a comparison to a type is always true or always false.
 
-These warnings will produce many warnings in the system code, but I recommend you add them to any file
-you write.
+The below warnings will produce many warnings in the STM generated code, but I recommend you add them to
+any file you write.
 
 * `#pragma GCC diagnostic warning "-Wunused-macros"` - Warns if a macro is not used
 * `#pragma GCC diagnostic warning "-Wsign-compare"` - Warns about comparing a signed to an unsigned value.
