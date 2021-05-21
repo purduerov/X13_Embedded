@@ -7,6 +7,11 @@
 
 #include "canFilterBankConfig.h"
 
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
+
 #define CAN_STDID_FILTER_MASK 0x7FF
 
 #define CAN_STDID_FILTER_SHIFT_16BITS 5
@@ -133,7 +138,7 @@ static void CAN_ConfigureFilterBankRegister32Bits(uint32_t *filterBankMSHalfword
 	uint32_t extid = (idMaskConfig->extId & CAN_EXTID_FILTER_MASK_32BITS) << CAN_EXTID_FILTER_SHIFT_32BITS;
 
 	uint32_t fullwordRegister = stdid | rtr | ide | extid;
-	*filterBankMSHalfwordRegister = (fullwordRegister & (0xFFFF << 16)) >> 16;
+	*filterBankMSHalfwordRegister = (fullwordRegister & (0xFFFFu << 16)) >> 16;
 	// *filterBankMSHalfwordRegister = fullwordRegister >> 16;
-	*filterBankLSHalfwordRegister = (fullwordRegister & 0xFFFF);
+	*filterBankLSHalfwordRegister = (fullwordRegister & 0xFFFFu);
 }

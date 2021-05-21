@@ -24,8 +24,8 @@ typedef struct _queue_handle_t
 	uint8_t handle;
 } queue_handle_t;
 
-void InitializeQueueModule();
-QueueErrorCode CreateQueue(void *dataArray, int elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle);
+void InitializeQueueModule(void);
+QueueErrorCode CreateQueue(void *dataArray, size_t elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle);
 QueueErrorCode AddToQueue(queue_handle_t queueHandle, void const *data);
 QueueErrorCode RemoveFromQueue(queue_handle_t queueHandle, void *data);
 void FreeQueue(queue_handle_t queueHandle);

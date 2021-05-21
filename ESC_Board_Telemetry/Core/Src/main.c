@@ -42,10 +42,16 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "assert.h"
 #include "common.h"
 #include "canFilterBankConfig.h"
 #include "queue.h"
 #include "stdint.h"
+
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
 
 /* USER CODE END Includes */
 
@@ -193,7 +199,6 @@ void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
 void TIM16_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 
 static uint8_t packROVVolt(uint16_t kissVolt);
 static void sendTelemetryData(void);
@@ -694,9 +699,9 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	htim3.Instance->CR1 &= ~TIM_CR1_UDIS;  //  Re-enable UEV Generation
 }
 
-void ADC_ConversionCompleteCallback(ADC_HandleTypeDef* hadc)
+void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 {
-	uint32_t adcValue = HAL_ADC_GetValue(hadc);
+	uint32_t adcValue = HAL_ADC_GetValue(_hadc);
 
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
@@ -724,7 +729,7 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef* hadc)
 	}
 
 	// Restart TIM14 to flash PA15 LED
-	HAL_ADC_Stop_IT(hadc);
+	HAL_ADC_Stop_IT(_hadc);
 
 	// Configure CAN Filter for Thrusters and
 	CAN_ConfigureFilterForThrusterOperation();
@@ -836,7 +841,7 @@ static inline uint8_t packROVVolt(uint16_t kissVolt) {
 void sendTelemetryData(void) {
 	CanTxData canSendPacket;
 	canSendPacket.data[ROV_TEMP] = telemetryBuffer[KISS_TEMP];
-	uint16_t voltage = (((uint16_t)telemetryBuffer[KISS_VOLT_HIGH]) << 8U) + telemetryBuffer[KISS_VOLT_LOW];
+	uint16_t voltage = (uint16_t)((((uint16_t)telemetryBuffer[KISS_VOLT_HIGH]) << 8U) + telemetryBuffer[KISS_VOLT_LOW]);
 	canSendPacket.data[ROV_VOLT] = packROVVolt(voltage);
 	canSendPacket.data[ROV_CURRENT_HIGH] = telemetryBuffer[KISS_CURRENT_HIGH];
 	canSendPacket.data[ROV_CURRENT_LOW] = telemetryBuffer[KISS_CURRENT_LOW];

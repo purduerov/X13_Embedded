@@ -20,6 +20,12 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
+
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
@@ -76,7 +82,7 @@ static void MX_CAN_Init(void);
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef* _hcan);
 void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber, uint32_t filterBankNumber);
 
-void DisableAllSolenoids();
+void DisableAllSolenoids(void);
 
 /* USER CODE END PFP */
 
@@ -287,7 +293,7 @@ void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber,
 	HAL_CAN_ConfigFilter(&hcan, &filter);
 }
 
-void DisableAllSolenoids()
+void DisableAllSolenoids(void)
 {
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);

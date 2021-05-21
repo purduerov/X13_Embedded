@@ -36,5 +36,15 @@
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/common/src</locationURI>
 		</link>
+		<link>
+			<name>common2</name>
+			<type>2</type>
+			<location>C:/Users/Grant/Documents/College/ROV/2020-21/X13_Embedded/common</location>
+		</link>
+		<link>
+			<name>common_rel</name>
+			<type>2</type>
+			<locationURI>PARENT-1-PROJECT_LOC/common</locationURI>
+		</link>
 	</linkedResources>
 </projectDescription>

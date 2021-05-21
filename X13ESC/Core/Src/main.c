@@ -26,6 +26,11 @@
 #include "common.h"
 #include "canFilterBankConfig.h"
 
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -96,7 +101,7 @@ static void MX_TIM3_Init(void);
 
 void EnablePWMOutput(TIM_HandleTypeDef *_htim);
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
+void CAN_ConfigureFilterForThrusterOperation(void);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
@@ -158,7 +163,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+	/* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
@@ -450,7 +455,7 @@ void EnablePWMOutput(TIM_HandleTypeDef *_htim) {
 	_htim->Instance->CR1 |= TIM_CR1_CEN;
 }
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
+void CAN_ConfigureFilterForThrusterOperation(void)
 {
 	CAN_FilterTypeDef thrusterOperationFilter;
 	CAN_FilterBank canFilterBank;
@@ -539,7 +544,7 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	HAL_ADC_Stop_IT(_hadc);
 
 	//  Configure CAN Filter for Thrusters and
-	CAN_ConfigureFilterForThrusterOperation(canId);
+	CAN_ConfigureFilterForThrusterOperation();
 	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
 
 	//  Restart TIM14 to flash PA15 LED

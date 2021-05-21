@@ -9,6 +9,11 @@
 #include <stdint.h>
 #include <string.h>
 
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
+
 #define NUM_QUEUES 5
 #define NUM_QUEUE_NODES 50
 
@@ -17,7 +22,7 @@
 typedef struct _QueueNode
 {
 	void *data;
-	struct _QueueNode* next;
+	struct _QueueNode *next;
 } QueueNode;
 
 typedef struct
@@ -26,15 +31,15 @@ typedef struct
 	QueueNode *last;
 	int size;
 
-	void* dataArray;
-	int elementSizeBytes;
+	void *dataArray;
+	size_t elementSizeBytes;
 } Queue;
 
-static void InitializeQueue(Queue *queue, void *dataArray, int elementSizeBytes);
+static void InitializeQueue(Queue *queue, void *dataArray, size_t elementSizeBytes);
 static QueueErrorCode FillQueue(Queue *queue, int numArrayElements);
 static void DeinitializeQueue(Queue *queue);
 static void AddNodeToQueue(Queue *queue, QueueNode *queueNode);
-static QueueNode* RemoveNodeFromQueue(Queue *queue);
+static QueueNode *RemoveNodeFromQueue(Queue *queue);
 
 Queue hierarchyQueue;
 QueueNode queueHandleNodes[NUM_QUEUES];
@@ -46,11 +51,12 @@ QueueNode queueNodes[NUM_QUEUE_NODES];
 Queue queues[NUM_QUEUES];
 Queue freeQueues[NUM_QUEUES];
 
-void InitializeQueueModule()
+
+void InitializeQueueModule(void)
 {
 	//  Initialize Hierarchy Queue
 	InitializeQueue(&hierarchyQueue, NULL, 0);
-	for (int i = 0; i < NUM_QUEUES; i++)
+	for (uint8_t i = 0; i < NUM_QUEUES; i++)
 	{
 		I(queueHandles[i]) = i;
 		queueHandleNodes[i].data = (void*)&(queueHandles[i]);
@@ -65,7 +71,7 @@ void InitializeQueueModule()
 	}
 }
 
-QueueErrorCode CreateQueue(void *dataArray, int elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle)
+QueueErrorCode CreateQueue(void *dataArray, size_t elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle)
 {
 	QueueNode *queueHandleNode;
 
@@ -142,7 +148,7 @@ int getQueueSize(queue_handle_t const queueHandle)
 	return queues[I(queueHandle)].size;
 }
 
-void InitializeQueue(Queue *queue, void *dataArray, int elementSizeBytes)
+static void InitializeQueue(Queue *queue, void *dataArray, size_t elementSizeBytes)
 {
 	queue->first = NULL;
 	queue->last = NULL;

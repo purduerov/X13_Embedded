@@ -4,7 +4,37 @@ to Project > Properties > C/C++ Build > Settings > Build Steps (tab) > Post-buil
 
 It is recommended to set optimization in Release builds to -O3 rather than the default -Osize.
 Change this in Project > Properties > C/C++ Build > Settings > Tool Settings (tab) > MCU GCC Compiler > Optimization > Optimization Level.
-You may need to click in and out of Setting to get the right tab to show.
+You may need to click in and out of Settings to get the right tab to show.
+
+
+## Recommended Compiler Warnings
+I recommend turning these on in every project you make. Go to Project > Properties > C/C++ Build > Settings >
+MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
+* `-Wshadow` - Warns if you declare a variable with the same name as a global variable.
+* `-Wvla` - Warns if a variable length array (vla) is written.
+* `-Wstrict-prototypes` - This requires complete prototypes / forward declarations of functions. In C, a
+	function declaration like `void func()` is actaully a function that can take any number of arguments,
+	not no arguments. For a no argument function, write `void func(void)`.
+* `-Wlogical-op` - Warns if an express is redundant in a logical operation.
+* `-Wshift-negative-value` - Warns when left shifting a negative value, which can interfere with the sign bit.
+* `-Wtype-limits` - Warns if a comparison to a type is always true or always false.
+
+These warnings will produce many warnings in the system code, but I recommend you add them to any file
+you write.
+
+* `#pragma GCC diagnostic warning "-Wunused-macros"` - Warns if a macro is not used
+* `#pragma GCC diagnostic warning "-Wsign-compare"` - Warns about comparing a signed to an unsigned value.
+* `#pragma GCC diagnostic warning "-Wconversion"` - Warns about implicit conversions between types.
+* `#pragma GCC diagnostic warning "-Wredundant-decls"` - Warns about a variable that is redeclared.
+
+
+Enabling strict prototypes will cause two warnings in `syscalls.c`. Replace errno with the following
+code and insert the missing void to fix these warnings.
+```C
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
+extern int errno;
+#pragma GCC diagnostic warning "-Wstrict-prototypes"
+```
 
 ## Useful macros:
 
