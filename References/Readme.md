@@ -36,6 +36,11 @@ extern int errno;
 #pragma GCC diagnostic warning "-Wstrict-prototypes"
 ```
 
+**References:**
+* [GCC Warning Options](https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#Warning-Options)
+* [GCC Pragmas for changing warnings](https://gcc.gnu.org/onlinedocs/gcc/Diagnostic-Pragmas.html)
+
+
 ## Useful macros:
 
 ### Compiler time (aka static) assert
