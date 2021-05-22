@@ -22,6 +22,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
 
 /* USER CODE END Includes */
 
@@ -36,7 +40,7 @@
 #define LED_PIN_PORT 'A'
 #define LED_PIN_NUMBER 15
 #define LED_FLASH_ENABLED 1
-#define LED_FLASH_TOGGLE_PERIOD_MS 500
+// LED_FLASH_TOGGLE_PERIOD_MS is in main.h. To change it, edit the .ioc file.
 
 /* USER CODE END PD */
 
@@ -50,8 +54,16 @@ TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
 
-GPIO_TypeDef* ledPinPort;
-uint16_t ledPinNumber;
+#if (LED_PIN_PORT == 'A' || LED_PIN_PORT == 'a')
+  GPIO_TypeDef *ledPinPort = GPIOA;
+#elif (LED_PIN_PORT == 'B' || LED_PIN_PORT == 'b')
+  GPIO_TypeDef *ledPinPort = GPIOB;
+#elif (LED_PIN_PORT == 'C' || LED_PIN_PORT == 'c')
+  GPIO_TypeDef *ledPinPort = GPIOC;
+#else
+  #error "Need a valid LED_PIN_PORT"
+#endif
+uint16_t ledPinNumber = (uint16_t)(1 << LED_PIN_NUMBER);
 
 /* USER CODE END PV */
 
@@ -182,7 +194,7 @@ static void MX_TIM14_Init(void)
   htim14.Instance = TIM14;
   htim14.Init.Prescaler = 8000 - 1;
   htim14.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim14.Init.Period = 65535;
+  htim14.Init.Period = LED_FLASH_TOGGLE_PERIOD_MS - 1;
   htim14.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim14.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim14) != HAL_OK)
@@ -194,7 +206,6 @@ static void MX_TIM14_Init(void)
   htim14.Instance->SR = 0;
 
   //  Configure LED Flash Frequency
-  htim14.Init.Period = LED_FLASH_TOGGLE_PERIOD_MS - 1;
   htim14.Instance->ARR = htim14.Init.Period;
 
   //  Set Timer Interrupt Update Callback Function
@@ -214,29 +225,25 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
-#if (LED_PIN_PORT == 'B' || LED_PIN_PORT == 'b')
+#if (LED_PIN_PORT == 'A' || LED_PIN_PORT == 'a')
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+#elif (LED_PIN_PORT == 'B' || LED_PIN_PORT == 'b')
   __HAL_RCC_GPIOB_CLK_ENABLE();
-  ledPinPort = GPIOB;
 #elif (LED_PIN_PORT == 'C' || LED_PIN_PORT == 'c')
   __HAL_RCC_GPIOC_CLK_ENABLE();
-  ledPinPort = GPIOC;
-#else  //  GPIOA
-  __HAL_RCC_GPIOA_CLK_ENABLE();
-  ledPinPort = GPIOA;
+#else
+  #error "Need a valid LED_PIN_PORT"
 #endif
 
-  ledPinNumber = (uint16_t)(1 << LED_PIN_NUMBER);
-
-  /*Configure GPIO pin Output Level */
+  /* Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(ledPinPort, ledPinNumber, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : PA15 */
+  /* Configure GPIO pin : PA15 */
   GPIO_InitStruct.Pin = ledPinNumber;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(ledPinPort, &GPIO_InitStruct);
-
 }
 
 /* USER CODE BEGIN 4 */
