@@ -1,4 +1,4 @@
-NOTE: LEDTest program meant for STM32F042K6T6
+**NOTE:** LEDTest program meant for STM32F042K6T6
 
 Instructions for executing LED Test Program:
 
@@ -11,7 +11,7 @@ LED Flash Toggle Period (Period in milliseconds)
 
 Program Semantics:
 At the start of the program, the GPIO output will manually toggle a couple times for
-the user "step over" using the debugger.  After this point, the GPIO output will use a timer 
+the user "step over" using the debugger.  After this point, the GPIO output will use a timer
 to toggle at the specific toggle period, if enabled, for the rest of the program.
 
 Example Parameters:
