@@ -10,9 +10,12 @@
 #include <string.h>
 
 #pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wunused-parameter"
 #pragma GCC diagnostic warning "-Wsign-compare"
 #pragma GCC diagnostic warning "-Wconversion"
 #pragma GCC diagnostic warning "-Wredundant-decls"
+#pragma GCC diagnostic warning "-Wswitch-default"
+#pragma GCC diagnostic warning "-Wswitch-enum"
 
 #define NUM_QUEUES 5
 #define NUM_QUEUE_NODES 50

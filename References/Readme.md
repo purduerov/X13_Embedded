@@ -18,19 +18,34 @@ MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 * `-Wlogical-op` - Warns if an express is redundant in a logical operation.
 * `-Wshift-negative-value` - Warns when left shifting a negative value, which can interfere with the sign bit.
 * `-Wtype-limits` - Warns if a comparison to a type is always true or always false.
+* `-Wmissing-parameter-type` - Warns if you don't write a parameter type (ex: int func(arg)) which defaults to int.
+* `-Wmissing-prototypes` - Warns if you don't have a prototype for a function ahead of it's definition.
+* `-Wmissing-field-initializers` - Warns if you initialize a struct and omit initializing a field, possibly because it was forgotten.
+* `-Wcast-qual` - Warns if you cast away `const`-ness of a variable/expression.
+* `-Wignored-qualifier` - Warns if there's a qualifier in a function return type (`const` usually) that does nothing. Possibly misplaced and hiding a bug.
+* `-Wpointer-arish` - Warns if you take the sizeof function or void. Bad practice and hopefully unintentional.
+* `-Wunsafe-loop-optimizations` - Warns if loop optimizations can't be done because the loop condition is weird.
+* `-Wduplicated-branches` - Warns if two branches in an if statement do the same thing.
+* `-Wduplicated-cond` - Warns if two conditions in an if-elseif chain have the same condition.
+
+
 
 The below warnings will produce many warnings in the STM generated code, but I recommend you add them to
 any file you write.
 
 * `#pragma GCC diagnostic warning "-Wunused-macros"` - Warns if a macro is not used
+* `#pragma GCC diagnostic warning "-Wunused-parameter"` - Warns if a function parameter is not used
 * `#pragma GCC diagnostic warning "-Wsign-compare"` - Warns about comparing a signed to an unsigned value.
 * `#pragma GCC diagnostic warning "-Wconversion"` - Warns about implicit conversions between types.
 * `#pragma GCC diagnostic warning "-Wredundant-decls"` - Warns about a variable that is redeclared.
+* `#pragma GCC diagnostic warning "-Wswitch-default"` - Warns if a switch has no default case.
+* `#pragma GCC diagnostic warning "-Wswitch-enum"` - Warns if the expression in the switch is an enum and one enum constant is missing a case.
 
 
-Enabling strict prototypes will cause two warnings in `syscalls.c`. Replace errno with the following
+Enabling strict prototypes and missing prototypes will cause warnings in `syscalls.c`. Replace errno with the following
 code and insert the missing void to fix these warnings.
 ```C
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 extern int errno;
 #pragma GCC diagnostic warning "-Wstrict-prototypes"

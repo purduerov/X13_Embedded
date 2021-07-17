@@ -42,16 +42,20 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "assert.h"
+#include <assert.h>
 #include "common.h"
 #include "canFilterBankConfig.h"
 #include "queue.h"
 #include "stdint.h"
 
 #pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wunused-parameter"
 #pragma GCC diagnostic warning "-Wsign-compare"
 #pragma GCC diagnostic warning "-Wconversion"
 #pragma GCC diagnostic warning "-Wredundant-decls"
+#pragma GCC diagnostic warning "-Wswitch-default"
+#pragma GCC diagnostic warning "-Wswitch-enum"
+
 
 /* USER CODE END Includes */
 
@@ -63,6 +67,34 @@ typedef struct
 	CAN_TxHeaderTypeDef canTxHeader;
 	uint8_t data[8];
 } CanTxData;
+
+typedef enum {
+	KISS_TEMP = 0,
+	KISS_VOLT_HIGH,
+	KISS_VOLT_LOW,
+	KISS_CURRENT_HIGH,
+	KISS_CURRENT_LOW,
+	KISS_ENERGY_HIGH,
+	KISS_ENERGY_LOW,
+	KISS_ERPM_HIGH,
+	KISS_ERPM_LOW,
+	KISS_CRC,
+	KISS_NO_CRC_COUNT = KISS_CRC,
+	KISS_CRC_COUNT
+} kiss_tlm_index_t;
+
+typedef enum {
+	ROV_TEMP = 0,
+	ROV_VOLT,
+	ROV_CURRENT_HIGH,
+	ROV_CURRENT_LOW,
+	ROV_ENERGY_HIGH,
+	ROV_ENERGY_LOW,
+	ROV_ERPM_HIGH,
+	ROV_ERPM_LOW,
+	ROV_TLM_COUNT
+} rov_tlm_index_t;
+
 
 /* USER CODE END PTD */
 
@@ -115,33 +147,6 @@ typedef struct
 // Assert that the divisor is a whole number.
 compile_assert((float)ROV_VOLT_DIVISOR == ((ROV_VOLT_MAX_KISS - ROV_VOLT_MIN_KISS) / (float)UINT8_MAX));
 
-typedef enum {
-	KISS_TEMP = 0,
-	KISS_VOLT_HIGH,
-	KISS_VOLT_LOW,
-	KISS_CURRENT_HIGH,
-	KISS_CURRENT_LOW,
-	KISS_ENERGY_HIGH,
-	KISS_ENERGY_LOW,
-	KISS_ERPM_HIGH,
-	KISS_ERPM_LOW,
-	KISS_CRC,
-	KISS_NO_CRC_COUNT = KISS_CRC,
-	KISS_CRC_COUNT
-} kiss_tlm_index_t;
-
-typedef enum {
-	ROV_TEMP = 0,
-	ROV_VOLT,
-	ROV_CURRENT_HIGH,
-	ROV_CURRENT_LOW,
-	ROV_ENERGY_HIGH,
-	ROV_ENERGY_LOW,
-	ROV_ERPM_HIGH,
-	ROV_ERPM_LOW,
-	ROV_TLM_COUNT
-} rov_tlm_index_t;
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -169,7 +174,7 @@ CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
 CanTxData canTxPrivateMessageToSend;
 
 static uint8_t telemetryBuffer[KISS_CRC_COUNT] = {0};
-static uint8_t telemetryBytesRecieved;
+static volatile uint8_t telemetryBytesRecieved;
 static uint8_t uartRxBuffer;
 static volatile uint8_t sendTelemetry;
 // Not sure if some of the above variables should or shouldn't be volatile so that
@@ -703,6 +708,30 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(_hadc);
 
+#define USE_SWITCH 1
+#if USE_SWITCH
+	switch(adcValue) {
+		case CAN_ID_201_LOW_THRESHOLD ... CAN_ID_201_HIGH_THRESHOLD:
+			canId = 0x201;
+			htim14.Init.Period = CAN_ID_201_FLASH_MS - 1;
+			break;
+		case CAN_ID_202_LOW_THRESHOLD ... CAN_ID_202_HIGH_THRESHOLD:
+			canId = 0x202;
+			htim14.Init.Period = CAN_ID_202_FLASH_MS - 1;
+			break;
+		case CAN_ID_203_LOW_THRESHOLD ... CAN_ID_203_HIGH_THRESHOLD:
+			canId = 0x203;
+			htim14.Init.Period = CAN_ID_203_FLASH_MS - 1;
+			break;
+		case CAN_ID_206_LOW_THRESHOLD ... CAN_ID_206_HIGH_THRESHOLD:
+			canId = 0x206;
+			htim14.Init.Period = CAN_ID_206_FLASH_MS - 1;
+			break;
+		default:
+			htim14.Init.Period = ERROR_FLASH_MS - 1;
+			break;
+	}
+#else
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
 		canId = 0x201;
@@ -727,6 +756,7 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	{
 		htim14.Init.Period = ERROR_FLASH_MS - 1;
 	}
+#endif
 
 	// Restart TIM14 to flash PA15 LED
 	HAL_ADC_Stop_IT(_hadc);
