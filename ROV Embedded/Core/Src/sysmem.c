@@ -29,6 +29,7 @@
  * Pointer to the current high watermark of the heap usage
  */
 static uint8_t *__sbrk_heap_end = NULL;
+void *_sbrk(ptrdiff_t inc);
 
 /**
  * @brief _sbrk() allocates memory to the newlib heap and is used by malloc

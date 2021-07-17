@@ -56,6 +56,7 @@
 									<listOptionValue builtIn="false" value="-Wunsafe-loop-optimizations"/>
 									<listOptionValue builtIn="false" value="-Wduplicated-branches"/>
 									<listOptionValue builtIn="false" value="-Wduplicated-cond"/>
+									<listOptionValue builtIn="false" value="-Winline"/>
 									<listOptionValue builtIn="false" value="-Wshadow"/>
 									<listOptionValue builtIn="false" value="-Wlogical-op"/>
 									<listOptionValue builtIn="false" value="-Wvla"/>
@@ -150,6 +151,7 @@
 									<listOptionValue builtIn="false" value="-Wunsafe-loop-optimizations"/>
 									<listOptionValue builtIn="false" value="-Wduplicated-branches"/>
 									<listOptionValue builtIn="false" value="-Wduplicated-cond"/>
+									<listOptionValue builtIn="false" value="-Winline"/>
 									<listOptionValue builtIn="false" value="-Wshadow"/>
 									<listOptionValue builtIn="false" value="-Wlogical-op"/>
 									<listOptionValue builtIn="false" value="-Wvla"/>

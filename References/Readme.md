@@ -11,6 +11,7 @@ Optimization > Optimization Level. You may need to click in and out of Settings 
 I recommend turning these on in every project you make. Go to Project > Properties > C/C++ Build > Settings >
 MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 * `-Wshadow` - Warns if you declare a variable with the same name as a global variable.
+* `-Winline` - Warns if a function specified as inline can't be inlined.
 * `-Wvla` - Warns if a variable length array (vla) is written.
 * `-Wstrict-prototypes` - This requires complete prototypes / forward declarations of functions. In C, a
 	function declaration like `void func()` is actaully a function that can take any number of arguments,
@@ -23,9 +24,9 @@ MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 * `-Wmissing-field-initializers` - Warns if you initialize a struct and omit initializing a field, possibly because it was forgotten.
 * `-Wcast-qual` - Warns if you cast away `const`-ness of a variable/expression.
 * `-Wignored-qualifier` - Warns if there's a qualifier in a function return type (`const` usually) that does nothing. Possibly misplaced and hiding a bug.
-* `-Wpointer-arish` - Warns if you take the sizeof function or void. Bad practice and hopefully unintentional.
+* `-Wpointer-arith` - Warns if you take the `sizeof` function or void. Bad practice and hopefully unintentional.
 * `-Wunsafe-loop-optimizations` - Warns if loop optimizations can't be done because the loop condition is weird.
-* `-Wduplicated-branches` - Warns if two branches in an if statement do the same thing.
+* `-Wduplicated-branches` - Warns if two branches in an `if` statement do the same thing.
 * `-Wduplicated-cond` - Warns if two conditions in an if-elseif chain have the same condition.
 
 
@@ -33,23 +34,25 @@ MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 The below warnings will produce many warnings in the STM generated code, but I recommend you add them to
 any file you write.
 
-* `#pragma GCC diagnostic warning "-Wunused-macros"` - Warns if a macro is not used
-* `#pragma GCC diagnostic warning "-Wunused-parameter"` - Warns if a function parameter is not used
+* `#pragma GCC diagnostic warning "-Wunused-macros"` - Warns if a macro is not used.
+* `#pragma GCC diagnostic warning "-Wunused-parameter"` - Warns if a function parameter is not used.
 * `#pragma GCC diagnostic warning "-Wsign-compare"` - Warns about comparing a signed to an unsigned value.
 * `#pragma GCC diagnostic warning "-Wconversion"` - Warns about implicit conversions between types.
 * `#pragma GCC diagnostic warning "-Wredundant-decls"` - Warns about a variable that is redeclared.
-* `#pragma GCC diagnostic warning "-Wswitch-default"` - Warns if a switch has no default case.
-* `#pragma GCC diagnostic warning "-Wswitch-enum"` - Warns if the expression in the switch is an enum and one enum constant is missing a case.
+* `#pragma GCC diagnostic warning "-Wswitch-default"` - Warns if a `switch` has no `default` case.
+* `#pragma GCC diagnostic warning "-Wswitch-enum"` - Warns if the expression in the `switch` is an `enum` and one enum constant is missing a `case`.
 
 
-Enabling strict prototypes and missing prototypes will cause warnings in `syscalls.c`. Replace errno with the following
-code and insert the missing void to fix these warnings.
+Enabling strict prototypes and missing prototypes will cause warnings in `syscalls.c`. Replace `errno` with the following
+code and insert the missing `void` to fix these warnings.
 ```C
 #pragma GCC diagnostic ignored "-Wmissing-prototypes"
 #pragma GCC diagnostic ignored "-Wstrict-prototypes"
 extern int errno;
 #pragma GCC diagnostic warning "-Wstrict-prototypes"
 ```
+And add `void *_sbrk(ptrdiff_t inc);` to line 32 in `sysmem.c`.
+
 
 **References:**
 * [GCC Warning Options](https://gcc.gnu.org/onlinedocs/gcc/Warning-Options.html#Warning-Options)
