@@ -16,13 +16,15 @@ typedef enum
 	QUEUE_NO_AVAILABLE_QUEUES = 1,
 	QUEUE_INVALID_QUEUE_REQUEST_SIZE = 2,
 	QUEUE_MAX_QUEUE_SIZE_REACHED = 3,
-	QUEUE_EMPTY = 4
+	QUEUE_EMPTY = 4,
+	QUEUE_ERROR_CODE_COUNT
 } QueueErrorCode;
 
 typedef struct _queue_handle_t
 {
 	uint8_t handle;
 } queue_handle_t;
+// See https://floooh.github.io/2018/06/17/handles-vs-pointers.html for rationale on using handles.
 
 void InitializeQueueModule(void);
 QueueErrorCode CreateQueue(void *dataArray, size_t elementSizeBytes, int numArrayElements, queue_handle_t *queueHandle);

@@ -20,7 +20,7 @@
 #define NUM_QUEUES 5
 #define NUM_QUEUE_NODES 50
 
-#define I(handleName) (handleName).handle
+#define I(handleName) ((handleName).handle)
 
 typedef struct _QueueNode
 {
