@@ -22,6 +22,8 @@ MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 * `-Wmissing-parameter-type` - Warns if you don't write a parameter type (ex: int func(arg)) which defaults to int.
 * `-Wmissing-prototypes` - Warns if you don't have a prototype for a function ahead of it's definition.
 * `-Wmissing-field-initializers` - Warns if you initialize a struct and omit initializing a field, possibly because it was forgotten.
+* `-Wimplicit-fallthrough=2` - Warns if a `case` statement in a switch does not have `break` before the following `case`.
+    Writing "fallthrough" or variations (see GCC warnings page) signals that the omission is intentional and no warning is emitted.
 * `-Wcast-qual` - Warns if you cast away `const`-ness of a variable/expression.
 * `-Wignored-qualifier` - Warns if there's a qualifier in a function return type (`const` usually) that does nothing. Possibly misplaced and hiding a bug.
 * `-Wpointer-arith` - Warns if you take the `sizeof` function or void. Bad practice and hopefully unintentional.

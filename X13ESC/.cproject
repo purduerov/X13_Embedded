@@ -51,6 +51,7 @@
 									<listOptionValue builtIn="false" value="-Wmissing-prototypes"/>
 									<listOptionValue builtIn="false" value="-Wmissing-parameter-type"/>
 									<listOptionValue builtIn="false" value="-Wmissing-field-initializers"/>
+									<listOptionValue builtIn="false" value="-Wimplicit-fallthrough=2"/>
 									<listOptionValue builtIn="false" value="-Wcast-qual"/>
 									<listOptionValue builtIn="false" value="-Wignored-qualifiers"/>
 									<listOptionValue builtIn="false" value="-Wpointer-arith"/>
@@ -149,6 +150,7 @@
 									<listOptionValue builtIn="false" value="-Wmissing-prototypes"/>
 									<listOptionValue builtIn="false" value="-Wmissing-parameter-type"/>
 									<listOptionValue builtIn="false" value="-Wmissing-field-initializers"/>
+									<listOptionValue builtIn="false" value="-Wimplicit-fallthrough=2"/>
 									<listOptionValue builtIn="false" value="-Wcast-qual"/>
 									<listOptionValue builtIn="false" value="-Wignored-qualifiers"/>
 									<listOptionValue builtIn="false" value="-Wpointer-arith"/>
