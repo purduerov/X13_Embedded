@@ -43,10 +43,14 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <assert.h>
+#include <stdint.h>
+
 #include "common.h"
+#define FILTER_AND_QUEUE 0
+#if FILTER_AND_QUEUE
 #include "canFilterBankConfig.h"
 #include "queue.h"
-#include "stdint.h"
+#endif
 
 #pragma GCC diagnostic warning "-Wunused-macros"
 #pragma GCC diagnostic warning "-Wunused-parameter"
@@ -169,7 +173,9 @@ UART_HandleTypeDef huart1;
 uint32_t canId = 0x206;
 uint8_t adcConfigured = 0;
 
+#if FILTER_AND_QUEUE
 queue_handle_t canTxQueueHandle;
+#endif
 CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
 CanTxData canTxPrivateMessageToSend;
 
@@ -195,7 +201,9 @@ static void MX_TIM16_Init(void);
 void EnablePWMOutput(TIM_HandleTypeDef *_htim);
 static uint32_t byte_to_pwm(uint8_t byte);
 
+#if FILTER_AND_QUEUE
 static void CAN_ConfigureFilterForThrusterOperation(void);
+#endif
 void SendCANMessage(CanTxData *canTxDataToSend);
 
 //  Interrupt Callback Functions
@@ -250,8 +258,10 @@ int main(void)
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
 
+#if FILTER_AND_QUEUE
   InitializeQueueModule();
   CreateQueue((void*)canTxData, sizeof(canTxData[0]), N_ELEMENTS(canTxData), &canTxQueueHandle);
+#endif
 
   //  Enable PWM Outputs to ESCs
   EnablePWMOutput(&htim3);
@@ -432,13 +442,17 @@ static void MX_CAN_Init(void)
   //  Configure CAN Interrupt Callbacks
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
 
+#if FILTER_AND_QUEUE
   CAN_ConfigureFilterForThrusterOperation();
+#endif
 
   //  Enable TX Request Complete Interrupt
+#if FILTER_AND_QUEUE
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
   HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+#endif
 
   /* USER CODE END CAN_Init 2 */
 
@@ -642,7 +656,8 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-static void CAN_ConfigureFilterForThrusterOperation()
+#if FILTER_AND_QUEUE
+static void CAN_ConfigureFilterForThrusterOperation(void)
 {
 	CAN_FilterTypeDef thrusterOperationFilter;
 	CAN_FilterBank canFilterBank;
@@ -675,6 +690,7 @@ static void CAN_ConfigureFilterForThrusterOperation()
 	CAN_ConfigureFilterBank(&thrusterOperationFilter, &canFilterBank);
 	HAL_CAN_ConfigFilter(&hcan, &thrusterOperationFilter);
 }
+#endif
 
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
@@ -685,12 +701,14 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
 
+#if defined(DEBUG) || !FILTER_AND_QUEUE
 	if(_hcan->Instance->sFIFOMailBox[0].RIR >> CAN_ID_RIR_SHIFT_AMOUNT != canId) {
 		uint8_t REEE = 0xFF;
 		(void)REEE;
 		Error_Handler();
 		return;
 	}
+#endif
 
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
 
@@ -734,7 +752,9 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	HAL_ADC_Stop_IT(_hadc);
 
 	// Configure CAN Filter for Thrusters and
+#if FILTER_AND_QUEUE
 	CAN_ConfigureFilterForThrusterOperation();
+#endif
 	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
 
 	// Restart TIM14 to flash PA15 LED
@@ -755,6 +775,7 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 	}
 }
 
+#if FILTER_AND_QUEUE
 void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 {
 	uint32_t txMailboxNumber;
@@ -766,15 +787,21 @@ void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
 	}
 }
+#endif
 
 void SendCANMessage(CanTxData *canTxDataToSend)
 {
 	uint32_t txMailboxNumber;
 
-	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0 && isQueueEmpty(canTxQueueHandle))
+	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0
+#if FILTER_AND_QUEUE
+			&& isQueueEmpty(canTxQueueHandle)
+#endif
+		)
 	{
 		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
 	}
+#if FILTER_AND_QUEUE
 	else
 	{
 		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
@@ -782,6 +809,7 @@ void SendCANMessage(CanTxData *canTxDataToSend)
 			assert(0);
 		}
 	}
+#endif
 }
 
 void EnablePWMOutput(TIM_HandleTypeDef *_htim)
