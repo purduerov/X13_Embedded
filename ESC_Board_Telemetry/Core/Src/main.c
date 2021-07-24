@@ -708,8 +708,6 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(_hadc);
 
-#define USE_SWITCH 1
-#if USE_SWITCH
 	switch(adcValue) {
 		case CAN_ID_201_LOW_THRESHOLD ... CAN_ID_201_HIGH_THRESHOLD:
 			canId = 0x201;
@@ -731,32 +729,6 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 			htim14.Init.Period = ERROR_FLASH_MS - 1;
 			break;
 	}
-#else
-	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
-	{
-		canId = 0x201;
-		htim14.Init.Period = CAN_ID_201_FLASH_MS - 1;
-	}
-	else if (CAN_ID_202_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_202_HIGH_THRESHOLD)
-	{
-		canId = 0x202;
-		htim14.Init.Period = CAN_ID_202_FLASH_MS - 1;
-	}
-	else if (CAN_ID_203_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_203_HIGH_THRESHOLD)
-	{
-		canId = 0x203;
-		htim14.Init.Period = CAN_ID_203_FLASH_MS - 1;
-	}
-	else if (CAN_ID_206_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_206_HIGH_THRESHOLD)
-	{
-		canId = 0x206;
-		htim14.Init.Period = CAN_ID_206_FLASH_MS - 1;
-	}
-	else
-	{
-		htim14.Init.Period = ERROR_FLASH_MS - 1;
-	}
-#endif
 
 	// Restart TIM14 to flash PA15 LED
 	HAL_ADC_Stop_IT(_hadc);
