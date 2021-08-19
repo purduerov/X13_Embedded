@@ -58,6 +58,7 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define LED_FLASH_TOGGLE_PERIOD_MS 500
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

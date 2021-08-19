@@ -22,20 +22,22 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <assert.h>
+#include "common.h"
 #include "canFilterBankConfig.h"
-#include "queue_api.h"
+
+#pragma GCC diagnostic warning "-Wunused-macros"
+#pragma GCC diagnostic warning "-Wunused-parameter"
+#pragma GCC diagnostic warning "-Wsign-compare"
+#pragma GCC diagnostic warning "-Wconversion"
+#pragma GCC diagnostic warning "-Wredundant-decls"
+#pragma GCC diagnostic warning "-Wswitch-default"
+#pragma GCC diagnostic warning "-Wswitch-enum"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
-typedef struct
-{
-	CAN_TxHeaderTypeDef canTxHeader;
-	uint8_t data[8];
-} CanTxData;
 
 /* USER CODE END PTD */
 
@@ -61,14 +63,13 @@ typedef struct
 #define CAN_ID_202_HIGH_THRESHOLD (CAN_ID_203_LOW_THRESHOLD - 1)
 #define CAN_ID_203_HIGH_THRESHOLD (CAN_ID_206_LOW_THRESHOLD - 1)
 #define CAN_ID_206_HIGH_THRESHOLD ADC_MAX_VALUE
+#define CAN_ID_ERROR 0x206
 
 #define CAN_ID_201_FLASH_MS 1000
 #define CAN_ID_202_FLASH_MS 500
 #define CAN_ID_203_FLASH_MS 250
 #define CAN_ID_206_FLASH_MS 2000
 #define ERROR_FLASH_MS 4000
-
-#define NUM_CAN_TX_QUEUE_MESSAGES 5
 
 /* USER CODE END PD */
 
@@ -87,11 +88,8 @@ TIM_HandleTypeDef htim14;
 
 /* USER CODE BEGIN PV */
 
-uint8_t adcConfigured = 0;
-
-int canTxQueueHandle;
-CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
-CanTxData canTxPrivateMessageToSend;
+uint8_ft adcConfigured = 0;
+uint32_t canId = CAN_ID_ERROR;
 
 /* USER CODE END PV */
 
@@ -105,16 +103,15 @@ static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 void EnablePWMOutput(TIM_HandleTypeDef *_htim);
-int byte_to_pwm(int byte);  //  Imported from X12 ESC Code
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId);
-void SendCANMessage(CanTxData* canTxDataToSend);
+void CAN_ConfigureFilterForThrusterOperation(void);
 
 //  Interrupt Callback Functions
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan);
-void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan);
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc);
 void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim);
+
+static uint32_t byte_to_pwm(uint8_t byte);
 
 /* USER CODE END PFP */
 
@@ -157,52 +154,9 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
-  InitializeQueueModule();
-  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
-
-  //  Enable PWM Outputs to ESCs
   EnablePWMOutput(&htim3);
-
-  //  Start Timer to begin sampling ESC_ID with ADC
-  HAL_TIM_Base_Start_IT(&htim14);
-
-  /*
-  //  Create CAN Message
-  canTxPrivateMessageToSend.canTxHeader.StdId = 0x212;
-  canTxPrivateMessageToSend.canTxHeader.DLC = 4;
-  canTxPrivateMessageToSend.canTxHeader.IDE = CAN_ID_STD;
-  canTxPrivateMessageToSend.canTxHeader.RTR = CAN_RTR_DATA;
-  canTxPrivateMessageToSend.data[0] = 0x01;
-  canTxPrivateMessageToSend.data[1] = 0x04;
-  canTxPrivateMessageToSend.data[2] = 0x09;
-  canTxPrivateMessageToSend.data[3] = 0x10;
-
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[0] = 0x11;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[1] = 0x12;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[2] = 0x13;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[3] = 0x14;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[3] = 0x15;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[3] = 0x16;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[3] = 0x17;
-  SendCANMessage(&canTxPrivateMessageToSend);
-
-  canTxPrivateMessageToSend.data[3] = 0x18;
-  SendCANMessage(&canTxPrivateMessageToSend);
-  */
+  // HAL_TIM_Base_Start_IT(&htim14);
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 
@@ -212,7 +166,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-    /* USER CODE BEGIN 3 */
+	/* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
@@ -337,9 +291,9 @@ static void MX_CAN_Init(void)
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = DISABLE;
   hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = ENABLE;
+  hcan.Init.AutoRetransmission = DISABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
-  hcan.Init.TransmitFifoPriority = ENABLE;
+  hcan.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
   {
     Error_Handler();
@@ -348,14 +302,9 @@ static void MX_CAN_Init(void)
 
   //  Enable FIFO0 Message Pending Interrupt
   HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
-  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
-  CAN_ConfigureFilterForThrusterOperation(0x201);
 
-  //  Enable TX Request Complete Interrupt
-  HAL_CAN_ActivateNotification(&hcan, CAN_IT_TX_MAILBOX_EMPTY);
-  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX0_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
-  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX1_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
-  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_TX_MAILBOX2_COMPLETE_CB_ID, CAN_TxRequestCompleteCallback);
+  //  Configure CAN Interrupt Callbacks
+  HAL_CAN_RegisterCallback(&hcan, HAL_CAN_RX_FIFO0_MSG_PENDING_CB_ID, CAN_FIFO0_RXMessagePendingCallback);
 
   /* USER CODE END CAN_Init 2 */
 
@@ -378,8 +327,6 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE BEGIN TIM3_Init 1 */
 
-  //  ESC will update at a frequency of 100Hz
-  //  TIM3 Count will reset every 10ms
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
   htim3.Init.Prescaler = 160 - 1;
@@ -458,6 +405,7 @@ static void MX_TIM14_Init(void)
   //  Configure Timer Interrupt Callback
   HAL_TIM_RegisterCallback(&htim14, HAL_TIM_PERIOD_ELAPSED_CB_ID, TIM14_TimeElapsedCallback);
 
+  HAL_TIM_Base_Start_IT(&htim14);
   /* USER CODE END TIM14_Init 2 */
 
 }
@@ -478,6 +426,9 @@ static void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_RESET);
 
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_3, GPIO_PIN_RESET);
+
   /*Configure GPIO pin : PA15 */
   GPIO_InitStruct.Pin = GPIO_PIN_15;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -485,11 +436,29 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : PB3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
 }
 
 /* USER CODE BEGIN 4 */
 
-void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
+void EnablePWMOutput(TIM_HandleTypeDef *_htim) {
+	//  Set HAL Timer Channel Status
+	TIM_CHANNEL_STATE_SET_ALL(_htim, HAL_TIM_CHANNEL_STATE_BUSY);
+
+	//  Enable outputs for all 4 PWM Channels
+	_htim->Instance->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E);
+
+	//  Enable Timer Counter
+	_htim->Instance->CR1 |= TIM_CR1_CEN;
+}
+
+void CAN_ConfigureFilterForThrusterOperation(void)
 {
 	CAN_FilterTypeDef thrusterOperationFilter;
 	CAN_FilterBank canFilterBank;
@@ -526,13 +495,13 @@ void CAN_ConfigureFilterForThrusterOperation(uint32_t canId)
 //  Handles ONLY the Reception of Thruster Operation CAN Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	int data[4];
+	uint32_t data_32 = _hcan->Instance->sFIFOMailBox[0].RDHR;
+	uint8_t *data = (uint8_t *)&data_32;
 
-	//  Get Data Bytes received from RX FIFO
-	data[0] = (int)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
-	data[1] = (int)((CAN_RDH0R_DATA6 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA6_Pos);
-	data[2] = (int)((CAN_RDH0R_DATA5 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA5_Pos);
-	data[3] = (int)((CAN_RDH0R_DATA4 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA4_Pos);
+	assert(_hcan->Instance->sFIFOMailBox[0].RIR >> 21 == canId);
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
+	// HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 
 	//  Release Output Mailbox
 	SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
@@ -550,7 +519,6 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 {
 	uint32_t adcValue = HAL_ADC_GetValue(_hadc);
-	uint32_t canId;
 
 	if (CAN_ID_201_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_201_HIGH_THRESHOLD)
 	{
@@ -569,7 +537,6 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	}
 	else if (CAN_ID_206_LOW_THRESHOLD <= adcValue && adcValue <= CAN_ID_206_HIGH_THRESHOLD)
 	{
-		canId = 0x206;
 		htim14.Init.Period = CAN_ID_206_FLASH_MS - 1;
 	}
 	else
@@ -580,7 +547,7 @@ void ADC_ConversionCompleteCallback(ADC_HandleTypeDef *_hadc)
 	HAL_ADC_Stop_IT(_hadc);
 
 	//  Configure CAN Filter for Thrusters and
-	CAN_ConfigureFilterForThrusterOperation(canId);
+	CAN_ConfigureFilterForThrusterOperation();
 	HAL_CAN_Start(&hcan);  //  Enters Normal Operating Mode
 
 	//  Restart TIM14 to flash PA15 LED
@@ -602,53 +569,11 @@ void TIM14_TimeElapsedCallback(TIM_HandleTypeDef *_htim)
 	}
 }
 
-void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
-{
-	uint32_t txMailboxNumber;
-	CanTxData* canTxDataToSend;
-
-	if (!isQueueEmpty(canTxQueueHandle) && HAL_CAN_GetTxMailboxesFreeLevel(_hcan) > 0)
-	{
-		RemoveFromQueue(canTxQueueHandle, (void**)&canTxDataToSend);
-		HAL_CAN_AddTxMessage(_hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
-	}
-}
-
-void SendCANMessage(CanTxData* canTxDataToSend)
-{
-	uint32_t txMailboxNumber;
-
-	if (HAL_CAN_GetTxMailboxesFreeLevel(&hcan) > 0 && isQueueEmpty(canTxQueueHandle))
-	{
-		HAL_CAN_AddTxMessage(&hcan, &(canTxDataToSend->canTxHeader), canTxDataToSend->data, &txMailboxNumber);
-	}
-	else
-	{
-		if (AddToQueue(canTxQueueHandle, canTxDataToSend) != QUEUE_SUCCESS)
-		{
-			; //  Queue is Full
-		}
-	}
-}
-
-void EnablePWMOutput(TIM_HandleTypeDef *_htim)
-{
-	//  Set HAL Timer Channel Status
-	TIM_CHANNEL_STATE_SET_ALL(_htim, HAL_TIM_CHANNEL_STATE_BUSY);
-
-	//  Enable outputs for all 4 PWM Channels
-	_htim->Instance->CCER |= (TIM_CCER_CC1E | TIM_CCER_CC2E | TIM_CCER_CC3E | TIM_CCER_CC4E);
-
-	//  Enable Timer Counter
-	_htim->Instance->CR1 |= TIM_CR1_CEN;
-}
-
-//  Imported from X12 ESC Code
-int byte_to_pwm(int byte)
+static uint32_t byte_to_pwm(uint8_t byte)
 {
 	float exact;
-	exact = byte * (40.0/255.0) + 55.0;
-	return (exact + 0.5); //rounds up the integer by adding 0.5
+	exact = (uint32_t)byte * (40.0F/255.0F) + 55.0F;
+	return (uint32_t) (exact + 0.5F); //rounds up the integer by adding 0.5
 }
 
 /* USER CODE END 4 */

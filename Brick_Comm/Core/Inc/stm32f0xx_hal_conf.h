@@ -158,11 +158,11 @@
 #define  USE_SPI_CRC                     0U
 
 #define  USE_HAL_ADC_REGISTER_CALLBACKS         0U /* ADC register callback disabled       */
-#define  USE_HAL_CAN_REGISTER_CALLBACKS         1U /* CAN register callback disabled       */
+#define  USE_HAL_CAN_REGISTER_CALLBACKS         0U /* CAN register callback disabled       */
 #define  USE_HAL_COMP_REGISTER_CALLBACKS        0U /* COMP register callback disabled      */
 #define  USE_HAL_CEC_REGISTER_CALLBACKS         0U /* CEC register callback disabled       */
 #define  USE_HAL_DAC_REGISTER_CALLBACKS         0U /* DAC register callback disabled       */
-#define  USE_HAL_I2C_REGISTER_CALLBACKS         1U /* I2C register callback disabled       */
+#define  USE_HAL_I2C_REGISTER_CALLBACKS         0U /* I2C register callback disabled       */
 #define  USE_HAL_SMBUS_REGISTER_CALLBACKS       0U /* SMBUS register callback disabled     */
 #define  USE_HAL_UART_REGISTER_CALLBACKS        0U /* UART register callback disabled      */
 #define  USE_HAL_USART_REGISTER_CALLBACKS       0U /* USART register callback disabled     */

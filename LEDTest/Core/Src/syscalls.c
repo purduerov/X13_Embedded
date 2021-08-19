@@ -34,7 +34,11 @@
 
 /* Variables */
 //#undef errno
+#pragma GCC diagnostic ignored "-Wmissing-prototypes"
+#pragma GCC diagnostic ignored "-Wstrict-prototypes"
 extern int errno;
+#pragma GCC diagnostic warning "-Wstrict-prototypes"
+
 extern int __io_putchar(int ch) __attribute__((weak));
 extern int __io_getchar(void) __attribute__((weak));
 
@@ -45,7 +49,7 @@ char **environ = __env;
 
 
 /* Functions */
-void initialise_monitor_handles()
+void initialise_monitor_handles(void)
 {
 }
 
