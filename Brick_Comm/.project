@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <projectDescription>
-	<name>ROV Embedded</name>
+	<name>Brick_Comm</name>
 	<comment></comment>
 	<projects>
 	</projects>
@@ -30,4 +30,27 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>common</name>
+			<type>2</type>
+			<locationURI>PARENT-1-PROJECT_LOC/common</locationURI>
+		</link>
+		<link>
+			<name>common_dbg</name>
+			<type>2</type>
+			<locationURI>PARENT-1-PROJECT_LOC/common</locationURI>
+		</link>
+		<link>
+			<name>common_debug</name>
+			<type>2</type>
+			<locationURI>copy_PARENT/common</locationURI>
+		</link>
+	</linkedResources>
+	<variableList>
+		<variable>
+			<name>copy_PARENT</name>
+			<value>$%7BPARENT-3-PROJECT_LOC%7D/Documents/College/ROV/2020-21/X13_Embedded</value>
+		</variable>
+	</variableList>
 </projectDescription>
