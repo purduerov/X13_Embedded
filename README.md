@@ -15,7 +15,8 @@ for the code.
 ## More info
 See the [References folder](References) for information on usual setups and
 the [common folder](common) for information on setting up the shared implementations
-and the shared source files themselves.
+and the shared source files themselves. The [Python folder](Python) has code for testing
+and a guide for doing so.
 
 
 ### Recommended settings
