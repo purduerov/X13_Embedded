@@ -23,15 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 
-#pragma GCC diagnostic warning "-Wunused-macros"
-#pragma GCC diagnostic warning "-Wunused-parameter"
-#pragma GCC diagnostic warning "-Wsign-compare"
-#pragma GCC diagnostic warning "-Wconversion"
-#pragma GCC diagnostic warning "-Wredundant-decls"
-#pragma GCC diagnostic warning "-Wswitch-default"
-#pragma GCC diagnostic warning "-Wswitch-enum"
-
-
+#include "warnings.h"
 #include "canFilterBankConfig.h"
 #include "queue.h"
 
@@ -96,7 +88,7 @@ CanTxData canTxData[NUM_CAN_TX_QUEUE_MESSAGES];
 CanTxData canTxPrivateMessageToSend;
 
 queue_handle_t i2cTxQueueHandle;
-I2CTxData i2cTxData[NUM_I2C_TX_QUEUE_MESSAGES];
+I2CTxData i2cTxDataBuffer[NUM_I2C_TX_QUEUE_MESSAGES];
 I2CTxData *i2cTxPrivateMessageToSend;
 
 int i2cTransactionReadyToStart = 1;
@@ -160,8 +152,8 @@ int main(void)
 
   //  Initialize Queues for CAN TX and I2C TX
   InitializeQueueModule();
-  CreateQueue((void*)canTxData, sizeof(CanTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
-  CreateQueue((void*)i2cTxData, sizeof(I2CTxData), NUM_I2C_TX_QUEUE_MESSAGES, &i2cTxQueueHandle);
+  CreateQueue((void*)canTxData, sizeof(*canTxData), NUM_CAN_TX_QUEUE_MESSAGES, &canTxQueueHandle);
+  CreateQueue((void*)i2cTxDataBuffer, sizeof(*i2cTxDataBuffer), NUM_I2C_TX_QUEUE_MESSAGES, &i2cTxQueueHandle);
 
   HAL_CAN_Start(&hcan);
 
@@ -195,9 +187,9 @@ int main(void)
       }
 
   }
-  /* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-  /* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
   /* USER CODE END 3 */
 }
 
@@ -522,6 +514,7 @@ void CAN_TxRequestCompleteCallback(CAN_HandleTypeDef *_hcan)
 
 void I2C_TransactionCompleteCallback(I2C_HandleTypeDef *hi2c)
 {
+    (void)hi2c;
     CanTxData canTxMessage;
 
     canTxMessage.canTxHeader.StdId = POWER_BRICK_REPLY_CAN_ID;

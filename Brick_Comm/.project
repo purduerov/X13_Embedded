@@ -41,11 +41,6 @@
 			<type>2</type>
 			<locationURI>PARENT-1-PROJECT_LOC/common</locationURI>
 		</link>
-		<link>
-			<name>common_debug</name>
-			<type>2</type>
-			<locationURI>copy_PARENT/common</locationURI>
-		</link>
 	</linkedResources>
 	<variableList>
 		<variable>

@@ -41,6 +41,7 @@ Mcu.UserConstants=
 Mcu.UserName=STM32F042K6Tx
 MxCube.Version=6.0.0
 MxDb.Version=DB.6.0.0
+NVIC.CEC_CAN_IRQn=true\:0\:0\:false\:false\:true\:true\:true
 NVIC.ForceEnableDMAVector=true
 NVIC.HardFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false
 NVIC.I2C1_IRQn=true\:0\:0\:false\:false\:true\:true\:true
@@ -107,15 +108,9 @@ ProjectManager.MainLocation=Core/Src
 ProjectManager.NoMain=false
 ProjectManager.PreviousToolchain=
 ProjectManager.ProjectBuild=false
-<<<<<<< HEAD:Brick_Comm/Brick_Comm.ioc
 ProjectManager.ProjectFileName=Brick_Comm.ioc
 ProjectManager.ProjectName=Brick_Comm
 ProjectManager.RegisterCallBack=CAN,I2C,TIM
-=======
-ProjectManager.ProjectFileName=ROV Embedded.ioc
-ProjectManager.ProjectName=ROV Embedded
-ProjectManager.RegisterCallBack=TIM
->>>>>>> master:ROV Embedded/ROV Embedded.ioc
 ProjectManager.StackSize=0x400
 ProjectManager.TargetToolchain=STM32CubeIDE
 ProjectManager.ToolChainLocation=

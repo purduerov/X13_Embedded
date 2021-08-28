@@ -1,10 +1,17 @@
-To see the assembly output: add `arm-none-eabi-objdump -D "${BuildArtifactFileBaseName}.elf" > "${BuildArtifactFileBaseName}.lst"`
+### To see the assembly output:
+add `arm-none-eabi-objdump -D "${BuildArtifactFileBaseName}.elf" > "${BuildArtifactFileBaseName}.lst"`
 to Project > Properties > C/C++ Build > Settings > Build Steps (tab) > Post-build steps.
 [Source](https://www.openstm32.org/forumthread2152)
 
 It is recommended to set optimization in Release builds to -O3 rather than the default -Osize.
 Change this in Project > Properties > C/C++ Build > Settings > Tool Settings (tab) > MCU GCC Compiler >
 Optimization > Optimization Level. You may need to click in and out of Settings to get the right tab to show.
+
+
+## Turn off auto breakpoint on `main`
+By default, when you debug a project, STM Cube will pause execution before starting `main()`. To disable
+this, go to Run > Debug Configurations... then Startup and uncheck "Set breakpoint at: main".
+![Disabling main breakpoint](remove-main-breakpoint.png)
 
 
 ## Recommended Compiler Warnings
@@ -25,7 +32,7 @@ MCU GCC Compiler > Miscllaneous. Don't forget to add them for Debug and Release.
 * `-Wimplicit-fallthrough=2` - Warns if a `case` statement in a switch does not have `break` before the following `case`.
     Writing "fallthrough" or variations (see GCC warnings page) signals that the omission is intentional and no warning is emitted.
 * `-Wcast-qual` - Warns if you cast away `const`-ness of a variable/expression.
-* `-Wignored-qualifier` - Warns if there's a qualifier in a function return type (`const` usually) that does nothing. Possibly misplaced and hiding a bug.
+* `-Wignored-qualifiers` - Warns if there's a qualifier in a function return type (`const` usually) that does nothing. Possibly misplaced and hiding a bug.
 * `-Wpointer-arith` - Warns if you take the `sizeof` function or void. Bad practice and hopefully unintentional.
 * `-Wunsafe-loop-optimizations` - Warns if loop optimizations can't be done because the loop condition is weird.
 * `-Wduplicated-branches` - Warns if two branches in an `if` statement do the same thing.
