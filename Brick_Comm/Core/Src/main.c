@@ -69,6 +69,20 @@ typedef struct
 #define I2C_BRICK_1_DEVICE_ADDRESS 0x23
 #define I2C_TRANSACTION_TIMEOUT_MS 10000
 
+#define SOLENOID_1_BITSHIFT 0
+#define SOLENOID_2_BITSHIFT 1
+#define SOLENOID_3_BITSHIFT 2
+#define SOLENOID_4_BITSHIFT 3
+#define SOLENOID_5_BITSHIFT 4
+#define SOLENOID_6_BITSHIFT 5
+
+#define SOLENOID_1_BITMASK (0x01 << SOLENOID_1_BITSHIFT)
+#define SOLENOID_2_BITMASK (0x01 << SOLENOID_2_BITSHIFT)
+#define SOLENOID_3_BITMASK (0x01 << SOLENOID_3_BITSHIFT)
+#define SOLENOID_4_BITMASK (0x01 << SOLENOID_4_BITSHIFT)
+#define SOLENOID_5_BITMASK (0x01 << SOLENOID_5_BITSHIFT)
+#define SOLENOID_6_BITMASK (0x01 << SOLENOID_6_BITSHIFT)
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -431,10 +445,10 @@ void CAN_ConfigureFilterForCanRecvOperation(uint32_t canId, uint32_t fifoNumber,
 //  Handles ONLY the reception of solenoid Operation Packets
 void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
 {
-	uint32_t data32;
-    uint8_t *data = (uint8_t *)&data32;
+	//uint32_t data32;
+    //uint8_t *data = (uint8_t *)&data32;
 
-    data32 = CAN_RDL0R_DATA0 & _hcan->Instance->sFIFOMailBox[0].RDLR;
+    //data32 = CAN_RDL0R_DATA0 & _hcan->Instance->sFIFOMailBox[0].RDLR;
     /*
      * NOTE: NEED TO CHECK IF TRICK TO PERFORM FEWER REGISTER READS SWITCHES DATA ORDER DUE TO ENDIANNESS.
     data[0] = (uint8_t)((CAN_RDL0R_DATA0 & _hcan->Instance->sFIFOMailBox[0].RDLR) >> CAN_RDL0R_DATA0_Pos);
@@ -446,12 +460,22 @@ void CAN_FIFO0_RXMessagePendingCallback(CAN_HandleTypeDef *_hcan)
     /*
      * Solenoid Control Code
      */
+	uint8_t solenoidControlByte;
+
+		solenoidControlByte = (uint8_t)((CAN_RDH0R_DATA7 & _hcan->Instance->sFIFOMailBox[0].RDHR) >> CAN_RDH0R_DATA7_Pos);
 
     HAL_GPIO_WritePin(GPIOA, GPIO_PIN_15, GPIO_PIN_SET);
     // HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_15);
 
     //  Release Output Mailbox
     SET_BIT(_hcan->Instance->RF0R, CAN_RF0R_RFOM0);
+
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, (solenoidControlByte & SOLENOID_1_BITMASK) >> SOLENOID_1_BITSHIFT);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, (solenoidControlByte & SOLENOID_2_BITMASK) >> SOLENOID_2_BITSHIFT);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, (solenoidControlByte & SOLENOID_3_BITMASK) >> SOLENOID_3_BITSHIFT);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, (solenoidControlByte & SOLENOID_4_BITMASK) >> SOLENOID_4_BITSHIFT);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, (solenoidControlByte & SOLENOID_5_BITMASK) >> SOLENOID_5_BITSHIFT);
+	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_6, (solenoidControlByte & SOLENOID_6_BITMASK) >> SOLENOID_6_BITSHIFT);
 }
 
 //  Handles ONLY to reception of power brick communication packets
